@@ -1,4 +1,4 @@
-from pyfcfc.lightcones import count_pairs_npy, pair_counts_to_cf, pair_counts_to_mp
+from pyfcfc.lightcones import count_pairs_npy, pair_counts_to_cf, pair_counts_to_mp, pair_counts_to_wp
 
 import numpy as np
 import os
@@ -51,3 +51,6 @@ if __name__=='__main__':
 
     multipoles = pair_counts_to_mp(cf, sbin_arr, n_mu_bins, poles)
     print(multipoles.shape)
+
+    wp = pair_counts_to_wp(cf, sbin_arr, pibin_arr)
+    print(wp.shape)

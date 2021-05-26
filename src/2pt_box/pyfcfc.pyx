@@ -658,6 +658,7 @@ def pair_counts_to_mp(pair_counts, sbin_arr, n_mu_bin, poles):
     return multipoles
 
 
-
-    
-    
+def pair_counts_to_wp(pair_counts, sbin_arr, pibin_arr):
+    dpi = pibin_arr[1:] - pibin_arr[:-1]
+    wp = (2 * pair_counts.reshape(sbin_arr.shape[0] - 1, pibin_arr.shape[0] - 1) * dpi[None,:]).sum(axis=1)
+    return wp
