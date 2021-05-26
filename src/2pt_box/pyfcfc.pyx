@@ -23,14 +23,12 @@ cdef extern from "define_comm.h":
 
 cdef extern from "count_func.h":
     void count_pairs(const void *tree1, const void *tree2, CF *cf,
-    pair_count_t *cnt, bint isauto, bint usewt) nogil
+    size_t *cnt, bint isauto) nogil
 
 # Interface structure for data
 cdef extern from "define.h":
     ctypedef struct DATA:
         real x[3]    # x, y, z         
-        real w       # weight          
-        real s       # x^2 + y^2 + z^2 
 
     cdef int FCFC_BIN_SMU
     cdef int FCFC_BIN_SPI
@@ -51,17 +49,7 @@ cdef extern from "define.h":
     cdef int FCFC_ERR_SAVE      =    (-15)
     cdef int FCFC_ERR_UNKNOWN   =    (-99)
 
-# cnvt_coord
 
-cdef extern from "cnvt_coord.h":
-    ctypedef struct COORD_CNVT:
-        size_t nsp           # number of sample points, excluding (0,0)      
-        double *z            # redshifts                                     
-        double *d            # radial comoving distances                     
-        double *ypp          # second derivative for spline interpolation    
-
-    COORD_CNVT *cnvt_init() nogil
-    void cnvt_destroy(COORD_CNVT *cnvt) nogil
 
 # CF structure 
 
@@ -73,15 +61,16 @@ cdef extern from "eval_cf.h":
 
 
     ctypedef struct CF:
+        real bsize           # side length of the periodic box
         real s2min           # minimum squared separation of interest         
         real s2max           # maximum squared separation of interest         
-        real p2min           # minimum squared pi of interest                 
-        real p2max           # maximum squared pi of interest                 
+        real pmin            # minimum pi of interest
+        real pmax            # maximum pi of interest
         real prec            # precision for truncating (squared) distances   
 
         real *s2bin          # edges of squared separation (or s_perp) bins   
         int ns               # number of separation (or s_perp) bins          
-        real *p2bin          # edges of squared pi bins                       
+        real *pbin          # edges of pi bins                       
         int np               # number of pi bins                              
         int nmu              # number of mu bins                              
         size_t nmu2          # squared number of mu bins                      
@@ -89,32 +78,25 @@ cdef extern from "eval_cf.h":
         size_t *ptab         # lookup table for squared pi bins               
         size_t *mutab        # lookup table for mu bins                       
 
-        real sp2min          # minimum squared s_perp of interest             
-        real sp2max          # maximum squared s_pere of interest             
-
-
         int nthread          # number of threads to be used                   
         int bintype          # binning scheme: iso, smu, or spi               
         size_t ntot          # total number of bins                           
         real *sbin           # edges of separation (or s_perp) bins           
-        real *pbin           # edges of pi bins                               
+        
 
         int ncat             # number of catalogues to be read                
         #const char *label    # labels of the input catalogues                 
         #DATA **data          # structures for saving the input catalogues     
         size_t *ndata        # number of objects in the input catalogues      
-        double *wdata        # weighted number of objects in the inputs       
-        const bint *wt       # indicate whether weights are available         
-        #const bint *cnvt     # indicate whether to run coordinate conversion  
-        #COORD_CNVT *coord    # structure for coordinate interpolation         
 
         int npc              # number of pair counts to be evaluated          
         #int *pc_idx[2]       # pairs to be counted, defined as input indices  
         #const bint *comp_pc  # indicate whether to evaluate the pair counts   
-        pair_count_t **cnt   # array for storing evaluated pair counts        
+        size_t **cnt   # array for storing evaluated pair counts        
         double *norm         # normalisation factors for pair counts          
         double **ncnt        # array for normalised pair counts               
-        pair_count_t *pcnt   # thread-private array for counting in parallel  
+        double *rr;          # array for analytical RR counts
+        size_t *pcnt   # thread-private array for counting in parallel  
         int ncf              # number of correlation functions to be computed 
         #char **cf_exp        # expression for correlation function estimators 
         #ast_t **ast_cf       # abstract syntax trees for 2PCF estimators      
@@ -184,10 +166,10 @@ cdef CF* cf_init_noconf(bint verbose,
                         int nthread, 
                         int bin_scheme, # bintype
                         int nmu, 
+                        double bsize,
                         double [:] sbin_arr, 
                         double [:] pibin_arr, 
-                        int dprec,
-                        const bint* use_wt) nogil:
+                        int dprec) nogil:
 
     printf("Initialising the correlation function calculation ...")
 
@@ -201,16 +183,16 @@ cdef CF* cf_init_noconf(bint verbose,
         fprintf(stderr, "ERROR: failed to allocate memory for the intialisation\n")
         return NULL
 
-    cf.sbin = cf.s2bin = cf.p2bin = NULL
+    cf.sbin = cf.s2bin = cf.pbin = NULL
     cf.stab = cf.mutab = cf.ptab =  NULL
     cf.cnt = NULL
-    cf.norm = NULL
-    cf.wdata = NULL
+    cf.norm = cf.rr = NULL
     cf.pcnt = NULL
     cf.ncnt = NULL
     cf.mp = cf.wp = NULL
     cf.nthread = nthread
     cf.bintype = bin_scheme
+    cf.bsize = bsize
     cf.prec = REAL_NAN
     cdef int prec
     if dprec != INT_MAX:
@@ -223,7 +205,7 @@ cdef CF* cf_init_noconf(bint verbose,
             cf.prec *= 10
             prec += 1
     cf.ns = sbin_arr.shape[0] - 1
-    cf.nmu=nmu
+    cf.nmu = nmu
     cf.np = pibin_arr.shape[0] - 1
 
     if cf.bintype == FCFC_BIN_SMU:
@@ -231,11 +213,11 @@ cdef CF* cf_init_noconf(bint verbose,
     elif cf.bintype == FCFC_BIN_SPI:
         cf.ntot = <size_t> cf.ns * cf.np
     else:
-        cf.ntot = cf.ns     #cf->bintype == FCFC_BIN_ISO 
+        cf.ntot = cf.ns     #cf.bintype == FCFC_BIN_ISO 
 
-    cf.wt = use_wt
     cf.npc = 1 #npc
     cf.ncf = 1
+    
     
 
     # Define separation bins
@@ -250,13 +232,11 @@ cdef CF* cf_init_noconf(bint verbose,
     cf.sbin = <real*> malloc(sizeof(real) * (cf.ns +1))
     cf.s2bin = <real*> malloc(sizeof(real) * (cf.ns +1))
     if not cf.sbin or not cf.s2bin:
-            fprintf(stderr, "ERROR: failed to allocate memory for pi bins.\n")
-            free(cf)
-            return NULL
+        fprintf(stderr, "ERROR: failed to allocate memory for pi bins.\n")
+        free(cf)
+        return NULL
     
     cdef size_t i
-    cf.sbin[0] = sbin_arr[0]
-
     for i in range(cf.ns+1):
         cf.sbin[i] = sbin_arr[i]
         cf.s2bin[i] = cf.sbin[i] * cf.sbin[i]
@@ -279,18 +259,17 @@ cdef CF* cf_init_noconf(bint verbose,
 
     
         cf.pbin = <real*> malloc(sizeof(real) * (cf.np +1))
-        cf.p2bin = <real*> malloc(sizeof(real) * (cf.np +1))
 
-        if not cf.pbin or not cf.p2bin:
+        if not cf.pbin:
             fprintf(stderr, "ERROR: failed to allocate memory for pi bins.\n")
             free(cf)
             return NULL
 
         for i in range(cf.np + 1):
             cf.pbin[i] = pibin_arr[i]
-            cf.p2bin[i] = cf.pbin[i]*cf.pbin[i]
-        cf.p2min=cf.p2bin[0]
-        cf.p2max=cf.p2bin[cf.np]
+
+        cf.pmin=cf.pbin[0]
+        cf.pmax=cf.pbin[cf.np]
 
         if verbose:
             printf("    %d pi bins loaded from array.\n", cf.np)
@@ -327,16 +306,12 @@ cdef CF* cf_init_noconf(bint verbose,
                     return NULL 
                 i -= 1
 
-        # Setup table for squared pi bins
+        # Setup table for pi bins
 
         if cf.bintype == FCFC_BIN_SPI:
-            cf.sp2min = cf.s2min
-            cf.sp2max = cf.s2max
-            cf.s2min += cf.p2min
-            cf.s2max += cf.p2max        
-
-            min = cf.p2bin[0]
-            max = cf.p2bin[cf.np]
+            
+            min = cf.pbin[0]
+            max = cf.pbin[cf.np]
 
             offset = <size_t> (min * cf.prec)
             ntab = <size_t> (max * cf.prec) - offset
@@ -348,9 +323,8 @@ cdef CF* cf_init_noconf(bint verbose,
                 return NULL
 
             j = 1 
-
             for i in range(ntab):
-                if <size_t> i+offset < <size_t> (cf.p2bin[j] * cf.prec):
+                if <size_t> i+offset < <size_t> (cf.pbin[j] * cf.prec):
                     cf.ptab[i] = <size_t> (j-1)
                 else:
                     j = j+1
@@ -369,8 +343,8 @@ cdef CF* cf_init_noconf(bint verbose,
             fprintf(stderr, "ERROR: failed to allocate memory for the lookup table of mu bins.\n")
             cf_destroy(cf)
             return NULL
+        
         j = 1 
-
         for i in range(cf.nmu2):
             if <size_t> i < <size_t> j*j:
                 cf.mutab[i] = <size_t> (j-1)
@@ -386,7 +360,7 @@ cdef CF* cf_init_noconf(bint verbose,
 
 
 
-    cf.cnt = <pair_count_t**> malloc(sizeof(pair_count_t*) * cf.npc)
+    cf.cnt = <size_t**> malloc(sizeof(size_t*) * cf.npc)
     if not cf.cnt:
         fprintf(stderr, "ERROR: failed to allocate memory for pair counts.\n")
         cf_destroy(cf)
@@ -407,7 +381,7 @@ cdef CF* cf_init_noconf(bint verbose,
     cf.ncnt[0] = NULL
 
     # Allocate memory only for the first elements of arrays
-    cf.cnt[0] = <pair_count_t *> calloc(cf.ntot * cf.npc, sizeof(pair_count_t))
+    cf.cnt[0] = <size_t *> calloc(cf.ntot * cf.npc, sizeof(size_t))
     cf.ncnt[0] = <double *> malloc(sizeof(double) * cf.ntot * cf.npc)
     if not cf.cnt[0] or not cf.ncnt[0]:
         fprintf(stderr, "ERROR: failed to allocate memory for pair counts.\n")
@@ -419,7 +393,7 @@ cdef CF* cf_init_noconf(bint verbose,
         printf("    WARNING: Assuming OMP always\n")
         fflush(stdout)
         # Thread-private pair counting pool.
-        cf.pcnt = <pair_count_t *> malloc(sizeof(pair_count_t)  *  cf.ntot * cf.nthread)
+        cf.pcnt = <size_t *> malloc(sizeof(size_t)  *  cf.ntot * cf.nthread)
         if not cf.pcnt:
             fprintf(stderr, "ERROR: failed to allocate memory for thread-private counting array.\n")
             cf_destroy(cf)
@@ -438,7 +412,7 @@ cdef CF* cf_init_noconf(bint verbose,
     #    cf.mp[0] = <double *> calloc(ntot * cf.ncf, sizeof(double))
     #    if not cf.mp[0]:
     #        fprintf(stderr, "ERROR: failed to allocate memory for correlation function multipoles.\n")
-    #        cf_destroy(cf)
+    #       cf_destroy(cf)
     #        return NULL
     #    for i in range(1, cf.ncf):
     #        cf.mp[i] = cf.mp[0] + ntot * i
@@ -452,10 +426,10 @@ cdef CF* cf_init_noconf(bint verbose,
     #    cf.wp[0] = <double *> calloc(cf.ns * cf.ncf, sizeof(double))
     #    if not cf.wp[0]:
     #        fprintf(stderr, "ERROR: failed to allocate memory for projected correlation function.\n")
-    #        cf_destroy(cf)
-    #        return NULL
-    #    for i in range(1, cf.ncf):
-    #        cf.wp[i] = cf.wp[0] + <size_t> cf.ns * i
+   #        cf_destroy(cf)
+   #         return NULL
+   #     for i in range(1, cf.ncf):
+   #         cf.wp[i] = cf.wp[0] + <size_t> cf.ns * i
 
     if verbose:
         printf("  Memory allocated for pair counts and correlation functions\n");
@@ -526,7 +500,7 @@ cdef KDT* kdtree_build_(DATA *data, const size_t ndata, DATA *buf, int *err) nog
     return node
 
 
-cdef DATA* npy_to_data(real [:,:] positions, real [:] weights, int nobj, int nthread) nogil:
+cdef DATA* npy_to_data(real [:,:] positions, int nobj, int nthread) nogil:
 
     cdef Py_ssize_t i
 
@@ -536,29 +510,21 @@ cdef DATA* npy_to_data(real [:,:] positions, real [:] weights, int nobj, int nth
         data[i].x[0] = positions[i,0]
         data[i].x[1] = positions[i,1]
         data[i].x[2] = positions[i,2]
-        data[i].s = data[i].x[0]**2 + data[i].x[1]**2 +data[i].x[2]**2 
-        data[i].w = weights[i]
 
     return data
 
 
 def count_pairs_npy(bint is_auto,
                     real[:,:] data_1, 
-                    real[:] weights_1, 
                     double[:] sbin_arr,
                     int n_mu_bin,
                     double[:] pibin_arr, 
                     int bin_scheme,
-                    list use_wt,
                     real[:,:] data_2, 
-                    real[:] weights_2,
+                    double box_size,
                     int nthreads):
 
-    if is_auto and len(use_wt) > 1:
-        raise ValueError("'use_wt' must be one element long for autocorrelations.")
-    elif not is_auto and len(use_wt) != 2:
-        raise ValueError("'use_wt' must be of length 2 for cross correlations.")
-    cdef int n_s_bin, n_tot_bin, n_p_bin
+    cdef int n_s_bin, n_tot_bin, n_mp, n_p_bin
     n_s_bin = sbin_arr.shape[0] - 1
     n_p_bin = pibin_arr.shape[0] - 1
     
@@ -578,7 +544,7 @@ def count_pairs_npy(bint is_auto,
 
     cdef DATA buf 
     cdef int err = 0    
-    cdef DATA* dat_1 = npy_to_data(data_1, weights_1, data_1.shape[0], nthreads)
+    cdef DATA* dat_1 = npy_to_data(data_1, data_1.shape[0], nthreads)
     printf("%s", b"Building KDTree for data 1\n")
     fflush(stdout)
     cdef KDT* tree_1 = kdtree_build(dat_1, data_1.shape[0], &buf, &err)    
@@ -587,7 +553,7 @@ def count_pairs_npy(bint is_auto,
     cdef DATA* dat_2 = NULL
     cdef KDT* tree_2 = NULL
     if not is_auto:
-        dat_2 = npy_to_data(data_2, weights_2, data_2.shape[0], nthreads)
+        dat_2 = npy_to_data(data_2, data_2.shape[0], nthreads)
         printf("%s", b"Building KDTree for data 2\n")
         fflush(stdout)
         err = 0
@@ -604,42 +570,33 @@ def count_pairs_npy(bint is_auto,
     
     printf("Using %d threads\n", nthreads)
     fflush(stdout)
-    
-    
-    cdef bint* c_use_wt = <bint*> malloc(sizeof(bint))
-    for err in range(len(use_wt)):
-        c_use_wt[err] = use_wt[err]
+        
     cdef size_t* c_ndata = <size_t*> malloc(sizeof(size_t))
-    cdef double* c_wdata = <double*> malloc(sizeof(double))
+    
     c_ndata[0] = <size_t> data_1.shape[0]
     c_ndata[1] = <size_t> data_2.shape[0]
 
-    cdef Py_ssize_t j
-    for j in range(weights_1.shape[0]):
-        c_wdata[0]+=weights_1[j]
-    if not is_auto:
-        for j in range(weights_2.shape[0]):
-            c_wdata[1]+=weights_2[j]
+
+
     
         
     cdef CF* cf = cf_init_noconf(verbose=True, 
                                 nthread=nthreads, 
                                 bin_scheme=bin_scheme, 
                                 nmu=n_mu_bin, 
+                                bsize = box_size,
                                 sbin_arr = sbin_arr, 
                                 pibin_arr = pibin_arr, 
-                                dprec=dprec,
-                                use_wt = c_use_wt)
+                                dprec=dprec
+                                )
     cf.ndata = c_ndata
-    cf.wdata = c_wdata
+    
     printf("Built CF struct\n")
     fflush(stdout)
 
-    if use_wt[0] or use_wt[1]:
-        out_pair_counts = np.empty(cf.ntot, dtype=np.double)
-        
-    else:
-        out_pair_counts = np.empty(cf.ntot, dtype=np.int64)
+            
+    
+    out_pair_counts = np.empty(cf.ntot, dtype=np.int64)
     
     out_norm_pair_counts = np.empty(cf.ntot, dtype=np.double)
 
@@ -648,17 +605,14 @@ def count_pairs_npy(bint is_auto,
     if is_auto:
         printf("Counting auto pairs\n")
         fflush(stdout)
-        count_pairs(tree_1, tree_1, cf, cf.cnt[0], is_auto, use_wt[0])
+        count_pairs(tree_1, tree_1, cf, cf.cnt[0], is_auto)
         printf("Exit count func\n")
         for i in range(cf.ntot):
-            if use_wt[0]:
-                cf.cnt[0][i].d *= 2
-            else:
-                cf.cnt[0][i].i *= 2
+            cf.cnt[0][i] *= 2
     else:
         printf("Counting cross pairs\n")
         fflush(stdout)
-        count_pairs(tree_1, tree_2, cf, cf.cnt[0], is_auto, use_wt[0] or use_wt[1])
+        count_pairs(tree_1, tree_2, cf, cf.cnt[0], is_auto)
         printf("Exit count func\n")
     printf("Free tree\n")
     fflush(stdout)
@@ -666,19 +620,12 @@ def count_pairs_npy(bint is_auto,
     if not is_auto:
         kdtree_free(tree_2)
     for i in range(cf.ntot):
-        if use_wt:
-            out_pair_counts[i] = cf.cnt[0][i].d
-            if is_auto:
-                cf.norm[0] = <double> (cf.wdata[0] * (cf.wdata[0] - 1 ))
-            else:
-                cf.norm[0] = <double> (cf.wdata[0] * cf.wdata[1])
-        
+    
+        out_pair_counts[i] = cf.cnt[0][i]
+        if is_auto:
+            cf.norm[0] = <double> (cf.ndata[0] * (cf.ndata[0] - 1 ))
         else:
-            out_pair_counts[i] = cf.cnt[0][i].i
-            if is_auto:
-                cf.norm[0] = <double> (cf.ndata[0] * (cf.ndata[0] - 1 ))
-            else:
-                cf.norm[0] = <double> (cf.ndata[0] * cf.ndata[1])
+            cf.norm[0] = <double> (cf.ndata[0] * cf.ndata[1])
         out_norm_pair_counts[i] = out_pair_counts[i] / (cf.norm[0])
         
 

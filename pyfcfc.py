@@ -1,4 +1,4 @@
-from pyfcfc import count_pairs_npy
+from pyfcfc.lightcones import count_pairs_npy, pair_counts_to_cf, pair_counts_to_mp
 
 import numpy as np
 import os
@@ -15,24 +15,39 @@ if __name__=='__main__':
     nthreads = int(os.getenv('OMP_NUM_THREADS', 1))
     bin_scheme = 1 # 0 isotropic, 1 s mu, 2 s pi
     use_wt = True
-    compute_wp = True
-    is_auto = False
+    is_auto = True
+    n_mu_bins = 40
+    poles = [0,2,4]
     s = time.time()
-    out, out_norm = count_pairs_npy(is_auto,
+    dd_out, dd_out_norm = count_pairs_npy(is_auto,
                             data.astype(np.double), 
                             weights, 
                             sbin_arr, 
-                            40,
+                            n_mu_bins,
                             pibin_arr, 
                             bin_scheme,
-                            [],
-                            compute_wp,
-                            [use_wt, False],
+                            [use_wt],
                             data.astype(np.double), 
                             weights, 
                             nthreads)
-    print(f"FCFC took {time.time() - s} s", flush=True)
-    print(out)
-    print(out.shape)
-    print(out_norm)
-    print(out_norm.shape)
+    rr_out, rr_out_norm = count_pairs_npy(is_auto,
+                            data.astype(np.double), 
+                            weights, 
+                            sbin_arr, 
+                            n_mu_bins,
+                            pibin_arr, 
+                            bin_scheme,
+                            [use_wt],
+                            data.astype(np.double), 
+                            weights, 
+                            nthreads)
+    print(f"pyFCFC took {time.time() - s} s", flush=True)
+    print(dd_out)
+    print(dd_out.shape)
+    print(dd_out_norm)
+    print(dd_out_norm.shape)
+
+    cf = pair_counts_to_cf(dd=dd_out_norm, rr=rr_out_norm, dr=None)
+
+    multipoles = pair_counts_to_mp(cf, sbin_arr, n_mu_bins, poles)
+    print(multipoles.shape)
