@@ -9,7 +9,9 @@ if __name__=='__main__':
     Nelem = int(1e5)
     NBINS=40
     data = np.random.random((Nelem, 3)) * 2500
+    rand = np.random.random((Nelem*10, 3)) * 2500
     weights = np.ones(Nelem)
+    weights_rand = np.ones(Nelem*10)
     sbin_arr = np.linspace(0,200, NBINS+1)
     pibin_arr = np.linspace(0,200, NBINS+1)
     nthreads = int(os.getenv('OMP_NUM_THREADS', 1))
@@ -27,19 +29,19 @@ if __name__=='__main__':
                             pibin_arr, 
                             bin_scheme,
                             [use_wt],
-                            data.astype(np.double), 
-                            weights, 
+                            None, 
+                            None, 
                             nthreads)
     rr_out, rr_out_norm = count_pairs_npy(is_auto,
-                            data.astype(np.double), 
-                            weights, 
+                            rand.astype(np.double), 
+                            weights_rand, 
                             sbin_arr, 
                             n_mu_bins,
                             pibin_arr, 
                             bin_scheme,
                             [use_wt],
-                            data.astype(np.double), 
-                            weights, 
+                            None, 
+                            None, 
                             nthreads)
     print(f"pyFCFC took {time.time() - s} s", flush=True)
     print(dd_out)
