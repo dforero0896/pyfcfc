@@ -226,7 +226,7 @@ cdef extern from "count_func.h":
 
 
 
-@cython.boundscheck(False)
+
 cdef DATA* npy_to_data(real [:,:] positions, real [:] weights, int nobj, int nthread) nogil:
 
     cdef Py_ssize_t i
