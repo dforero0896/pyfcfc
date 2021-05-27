@@ -1185,10 +1185,12 @@ Arguments:
 ******************************************************************************/
 void count_pairs(const void *tree1, const void *tree2, CF *cf,
     pair_count_t *cnt, bool isauto, bool usewt) {
+      
   /* Choose the optimal pair counting function. */
+  
   void (*pair_count_func) (STACK_DUAL_NODE *, const CF *, pair_count_t *) =
       NULL;
-
+  
   bool smin0 = (cf->sbin[0] < REAL_TOL && cf->sbin[0] > -REAL_TOL);
   if (isauto) {
     if (usewt) {
@@ -1267,6 +1269,7 @@ void count_pairs(const void *tree1, const void *tree2, CF *cf,
         else {                              /* FCFC_BIN_TRUNC */
           if (smin0) pair_count_func = kdtree_auto_iso_trunc_smin0;
           else pair_count_func = kdtree_auto_iso_trunc;
+
         }
       }
       else if (cf->bintype == FCFC_BIN_SMU) {
@@ -1448,29 +1451,38 @@ void count_pairs(const void *tree1, const void *tree2, CF *cf,
   }
 
   /* Initialise the stack for dual nodes. */
+
   STACK_DUAL_NODE stack;
   stack.size = stack.capacity = 0;
   stack_push(&stack, tree1, tree2);
+  
+
 
 #ifdef OMP
   /* Assign tasks to different OpenMP threads. */
+  
   size_t size = stack.size;     /* for visiting all nodes at the same level */
+  
   while (stack.size != size ||
       stack.size < (size_t) cf->nthread * FCFC_STACK_SIZE_PER_THREAD) {
     pair_count_func(&stack, cf, cnt);
+    
     if (!stack.size) return;    /* all pairs have been recorded */
     if (size > 1) {
       size -= 1;
       /* reorder dual nodes, to ensure nodes at the same level are visited */
       DUAL_NODE tmp = stack.nodes[stack.size - 1];
+      
       stack.nodes[stack.size - 1] = stack.nodes[size - 1];
       stack.nodes[size - 1] = tmp;
     }
     else size = stack.size;
   }
-
+  
+  
   /* Clean the array for storing thread-private pair counts. */
   memset(cf->pcnt, 0, sizeof(pair_count_t) * cf->ntot * cf->nthread);
+  
 #pragma omp parallel
   {
     STACK_DUAL_NODE ps;         /* thread-private stack */
@@ -1478,11 +1490,13 @@ void count_pairs(const void *tree1, const void *tree2, CF *cf,
     const int tid = omp_get_thread_num();
 #pragma omp for schedule(dynamic)
     for (size_t i = 0; i < stack.size; i++) {
+    
       stack_push(&ps, stack.nodes[i].a, stack.nodes[i].b);
       while (ps.size) pair_count_func(&ps, cf, cf->pcnt + tid * cf->ntot);
     }
     stack_destroy(&ps);
   }
+  
 
   /* Gather pair counts from threads. */
   if (usewt) {

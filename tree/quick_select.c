@@ -253,6 +253,7 @@ static inline size_t median3(QSELECT_DTYPE *A, size_t i1, size_t i2, size_t i3,
     i1 = i3;
     i3 = tmp;
   }
+  
   if (QSELECT_COMPARE(A + i2, A + i3, arg) > 0) return i3;
   if (QSELECT_COMPARE(A + i2, A + i1, arg) < 0) return i1;
   return i2;

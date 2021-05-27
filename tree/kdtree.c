@@ -29,6 +29,8 @@ Return:
   The order of the two data points.
 ******************************************************************************/
 static inline int kth_compare(const DATA *a, const DATA *b, int k) {
+  
+  fflush(stdout);
   if (a->x[k] > b->x[k]) return 1;
   if (a->x[k] < b->x[k]) return -1;
 
@@ -102,12 +104,14 @@ KDT* kdtree_build(DATA *data, const size_t ndata, DATA *buf, int *err) {
     *err = FCFC_ERR_ARG;
     return NULL;
   }
+  
   KDT *node = kdtree_init(data, ndata);
+  
   if (!node) {
     *err = FCFC_ERR_MEMORY;
     return NULL;
   }
-
+  
   /* Compute only the corner of `data` if this is a leaf node. */
   if (ndata <= KDTREE_LEAF_SIZE) {
     for (int k = 0; k < 3; k++) {
@@ -122,7 +126,7 @@ KDT* kdtree_build(DATA *data, const size_t ndata, DATA *buf, int *err) {
     }
     return node;
   }
-
+  
   /* Find the direction with the largest variance, and corners of `data`. */
   int dir = 0;          /* direction with the largest variance */
   real var_max = 0;
@@ -153,13 +157,14 @@ KDT* kdtree_build(DATA *data, const size_t ndata, DATA *buf, int *err) {
       var_max = var;
     }
   }
-
+  
   size_t n = ndata >> 1;        /* index of the median point */
   /* Split the dataset by the median in the direction with largest variance. */
+  
   qselect(data, n, ndata, buf, &dir);
+  
   node->left = kdtree_build(data, n, buf, err);
   node->right = kdtree_build(data + n, ndata - n, buf, err);
-
   return node;
 }
 
