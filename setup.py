@@ -5,28 +5,44 @@ import numpy
 import glob, os
 
 from numpy.compat import py3k
-try:
-      os.remove("src/2pt/pyfcfc.c")
-except: pass
-includes = [numpy.get_include(), '/usr/include', 'etc', 'io', 'lib', 'math', 'src/2pt', 'tree', 'src']
-sources = glob.glob(f"src/2pt/*.c") + glob.glob(f"io/*.c") + glob.glob(f"lib/*.c") + glob.glob(f"math/*.c") + glob.glob(f"tree/*.c")
-pyfcfc_lc = Extension("pyfcfc.lightcones",
-                  sources=['src/2pt/pyfcfc.pyx'] + sources,
-                  include_dirs=includes,
-                  library_dirs=['/usr/lib/x86_64-linux-gnu'],
-                  language='c',
-                  extra_compile_args=["-DOMP", "-fopenmp"],
-                  extra_link_args=["-fopenmp"]
-             )
+#try:
+#      os.remove("src/2pt/pyfcfc.c")
+#except: pass
+#includes = [numpy.get_include(), '/usr/include', 'etc', 'io', 'lib', 'math', 'src/2pt', 'tree', 'src']
+#sources = glob.glob(f"src/2pt/*.c") + glob.glob(f"io/*.c") + glob.glob(f"lib/*.c") + glob.glob(f"math/*.c") + glob.glob(f"tree/*.c")
+#pyfcfc_lc = Extension("pyfcfc.lightcones",
+#                  sources=['src/2pt/pyfcfc.pyx'] + sources,
+#                  include_dirs=includes,
+#                  library_dirs=['/usr/lib/x86_64-linux-gnu'],
+#                  language='c',
+#                  extra_compile_args=["-DOMP", "-fopenmp"],
+#                  extra_link_args=["-fopenmp"]
+#             )
+
+fcfc_prefix = "FCFC-main"
+default_includes = [numpy.get_include(), '/usr/include']
+fcfc_include_dirs = ["io", "lib", "math", "tree", "util"]
+fcfc_include_dirs_2pt_box = ["fcfc/2pt_box"]
+fcfc_pyx = f"{fcfc_prefix}/src/{fcfc_include_dirs_2pt_box[0]}/pyfcfc.pyx"
 
 try:
-      os.remove("src/2pt_box/pyfcfc.c")
+      os.remove(f"{fcfc_pyx.replace('.pyx', '.c')}")
 except: pass
-includes = [numpy.get_include(), '/usr/include', 'etc', 'io', 'lib', 'math', 'src/2pt_box', 'tree', 'src']
-sources = glob.glob(f"src/2pt_box/*.c") + glob.glob(f"io/*.c") + glob.glob(f"lib/*.c") + glob.glob(f"math/*.c") + glob.glob(f"tree/*.c")
+
+
+includes =  [f"{fcfc_prefix}/src/{d}" for d in fcfc_include_dirs_2pt_box] + \
+            [f"{fcfc_prefix}/src/{d}" for d in fcfc_include_dirs]
+            
+
+sources = []
+for d in includes:
+      sources += glob.glob(f"{d}/*.c")
+
+
+
 pyfcfc_box = Extension("pyfcfc.boxes",
-                  sources=['src/2pt_box/pyfcfc.pyx'] + sources,
-                  include_dirs=includes,
+                  sources=[fcfc_pyx] + sources,
+                  include_dirs=includes + default_includes,
                   library_dirs=['/usr/lib/x86_64-linux-gnu'],
                   language='c',
                   extra_compile_args=["-DOMP", "-fopenmp"],
@@ -34,5 +50,7 @@ pyfcfc_box = Extension("pyfcfc.boxes",
              )
 
 setup(name='pyfcfc',
-      ext_modules=cythonize([pyfcfc_lc, pyfcfc_box], gdb_debug=True),
-      packages=['pyfcfc'])
+      ext_modules=cythonize([pyfcfc_box], gdb_debug=True),
+      packages=['pyfcfc'],
+      annotate = True
+      )
