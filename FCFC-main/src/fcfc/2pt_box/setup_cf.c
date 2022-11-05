@@ -698,7 +698,6 @@ CF *cf_setup(const CONF *conf
       cf_destroy(cf); return NULL;
     }
   }
-
   /* Check if any catalogue is not used. */
   for (int i = 0; i < cf->ncat; i++) {
     bool found = false;
@@ -711,28 +710,29 @@ CF *cf_setup(const CONF *conf
     if (!found)
       P_WRN("catalog <%c> is not required for pair counting\n", cf->label[i]);
   }
-
+  
   /* Allocate memory for the catalogues, pair counts, and 2PCFs. */
-  if (!(cf->data = calloc((unsigned int) cf->ncat, sizeof(DATA)))) {
-    P_ERR("failed to allocate memory for the input catalogs\n");
-    cf_destroy(cf); return NULL;
-  }
-  for (int i = 0; i < cf->ncat; i++) data_init(cf->data + i);
+  //if (!(cf->data = calloc((unsigned int) cf->ncat, sizeof(DATA)))) {
+  //  P_ERR("failed to allocate memory for the input catalogs\n");
+  //  cf_destroy(cf); return NULL;
+  //}
+ // for (int i = 0; i < cf->ncat; i++) data_init(cf->data + i);
 
   if (!(cf->wt = malloc(sizeof(bool) * cf->npc)) ||
       !(cf->cat_wt = calloc(cf->ncat, sizeof(bool)))) {
     P_ERR("failed to allocate memory for weight indicators\n");
     cf_destroy(cf); return NULL;
-  }
+  } 
   for (int i = 0; i < cf->npc; i++) {
     cf->cat_wt[cf->pc_idx[0][i]] = cf->cat_wt[cf->pc_idx[1][i]] = cf->wt[i] =
         conf->has_wt[cf->pc_idx[0][i]] || conf->has_wt[cf->pc_idx[1][i]];
   }
-
+  
   if (!(cf->cnt = malloc(sizeof(COUNT *) * cf->npc))) {
     P_ERR("failed to allocate memory for pair counts\n");
     cf_destroy(cf); return NULL;
   }
+  
   cf->cnt[0] = NULL;    /* memory will be allocated only at the first element */
   if (!(cf->norm = calloc(cf->npc, sizeof(double)))) {
     P_ERR("failed to allocate memory for the normalizations of pair counts\n");

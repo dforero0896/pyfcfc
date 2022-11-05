@@ -62,61 +62,61 @@ void *tree_create(const CONF *conf, CF *cf, const int idx
     if (conf->verbose)  printf("\n");
     fflush(stdout);
 
-    /* Read catalogue from file. */
-    const size_t skip = (conf->skip) ? conf->skip[idx] : DEFAULT_ASCII_SKIP;
-    const char cmt = (conf->comment) ? conf->comment[idx] :
-        DEFAULT_ASCII_COMMENT;
-    const char *sel = (conf->sel) ? conf->sel[idx] : NULL;
-    if (sel && ((sel[0] == '\'' && sel[1] == '\'') ||
-        (sel[0] == '"' && sel[1] == '"')) && sel[2] == '\0') sel = NULL;
-
-    char *col_id[4];
-    int ncol = 3;
-    for (int i = 0; i < 3; i++) col_id[i] = conf->pos[idx * 3 + i];
-    if (conf->has_wt[idx]) {
-      ncol = 4;
-      col_id[3] = conf->wt[idx];
-    }
-    else col_id[3] = NULL;
-    real **res = NULL;
-
-    int ftype = conf->ftype ? conf->ftype[idx] : DEFAULT_FILE_TYPE;
-    switch (ftype) {
-      case FCFC_FFMT_ASCII:
-        if (read_ascii_data(conf->input[idx], skip, cmt, conf->fmtr[idx],
-            col_id, ncol, sel, &res, &data->n, conf->verbose)) return NULL;
-        break;
-      case FCFC_FFMT_FITS:
-#ifdef WITH_CFITSIO
-        if (read_fits_data(conf->input[idx], col_id, ncol, sel, &res,
-            &data->n, conf->verbose)) return NULL;
-        break;
-#else
-        P_ERR("FITS format is not enabled\n"
-            "Please re-compile the code with option -DWITH_CFITSIO\n");
-        return NULL;
-#endif
-      case FCFC_FFMT_HDF5:
-#ifdef WITH_HDF5
-        if (read_hdf5_data(conf->input[idx], col_id, ncol, sel, &res,
-            &data->n, conf->verbose)) return NULL;
-        break;
-#else
-        P_ERR("HDF5 format is not enabled\n"
-            "Please re-compile the code with option -DWITH_HDF5\n");
-        return NULL;
-#endif
-      default:
-        P_ERR("unexpected format (%d) of file: `%s'\n", conf->ftype[idx],
-            conf->input[idx]);
-        return NULL;
-    }
-
-    data->x[0] = res[0];
-    data->x[1] = res[1];
-    data->x[2] = res[2];
-    data->w = (conf->has_wt[idx]) ? res[3] : NULL;
-    free(res);
+//    /* Read catalogue from file. */
+//    const size_t skip = (conf->skip) ? conf->skip[idx] : DEFAULT_ASCII_SKIP;
+//    const char cmt = (conf->comment) ? conf->comment[idx] :
+//        DEFAULT_ASCII_COMMENT;
+//    const char *sel = (conf->sel) ? conf->sel[idx] : NULL;
+//    if (sel && ((sel[0] == '\'' && sel[1] == '\'') ||
+//        (sel[0] == '"' && sel[1] == '"')) && sel[2] == '\0') sel = NULL;
+//
+//    char *col_id[4];
+//    int ncol = 3;
+//    for (int i = 0; i < 3; i++) col_id[i] = conf->pos[idx * 3 + i];
+//    if (conf->has_wt[idx]) {
+//      ncol = 4;
+//      col_id[3] = conf->wt[idx];
+//    }
+//    else col_id[3] = NULL;
+//    real **res = NULL;
+//
+//    int ftype = conf->ftype ? conf->ftype[idx] : DEFAULT_FILE_TYPE;
+//    switch (ftype) {
+//      case FCFC_FFMT_ASCII:
+//        if (read_ascii_data(conf->input[idx], skip, cmt, conf->fmtr[idx],
+//            col_id, ncol, sel, &res, &data->n, conf->verbose)) return NULL;
+//        break;
+//      case FCFC_FFMT_FITS:
+//#ifdef WITH_CFITSIO
+//        if (read_fits_data(conf->input[idx], col_id, ncol, sel, &res,
+//            &data->n, conf->verbose)) return NULL;
+//        break;
+//#else
+//        P_ERR("FITS format is not enabled\n"
+//            "Please re-compile the code with option -DWITH_CFITSIO\n");
+//        return NULL;
+//#endif
+//      case FCFC_FFMT_HDF5:
+//#ifdef WITH_HDF5
+//        if (read_hdf5_data(conf->input[idx], col_id, ncol, sel, &res,
+//            &data->n, conf->verbose)) return NULL;
+//        break;
+//#else
+//        P_ERR("HDF5 format is not enabled\n"
+//            "Please re-compile the code with option -DWITH_HDF5\n");
+//        return NULL;
+//#endif
+//      default:
+//        P_ERR("unexpected format (%d) of file: `%s'\n", conf->ftype[idx],
+//            conf->input[idx]);
+//        return NULL;
+//    }
+//
+//    data->x[0] = res[0];
+//    data->x[1] = res[1];
+//    data->x[2] = res[2];
+//    data->w = (conf->has_wt[idx]) ? res[3] : NULL;
+//    free(res);
 
     /* Rescale the input coordinates if necessary. */
     if (cf->rescale != 1) {

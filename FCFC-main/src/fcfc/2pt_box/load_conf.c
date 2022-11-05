@@ -659,19 +659,20 @@ Return:
 ******************************************************************************/
 static int conf_verify(const cfg_t *cfg, CONF *conf) {
   int e, num;
-
+  /*
   /* CATALOG */
-  CHECK_EXIST_ARRAY(CATALOG, cfg, &conf->input, conf->ninput);
-  if (conf->ninput > 26) {
-    P_ERR("there can be at most 26 catalogs set via " FMT_KEY(CATALOG) "\n");
-    return FCFC_ERR_CFG;
-  }
-  for (int i = 0; i < conf->ninput; i++) {
-    if ((e = check_input(conf->input[i], "CATALOG"))) return e;
-  }
-
+//  CHECK_EXIST_ARRAY(CATALOG, cfg, &conf->input, conf->ninput);
+//  if (conf->ninput > 26) {
+//    P_ERR("there can be at most 26 catalogs set via " FMT_KEY(CATALOG) "\n");
+//    return FCFC_ERR_CFG;
+//  }
+//  for (int i = 0; i < conf->ninput; i++) {
+//    if ((e = check_input(conf->input[i], "CATALOG"))) return e;
+//  }
+//
   /* CATALOG_LABEL */
   num = cfg_get_size(cfg, &conf->label);
+  conf->ninput = cfg_get_size(cfg, &conf->label);
   if (!num) {
     char *tmp = realloc(conf->label, conf->ninput * sizeof *tmp);
     if (!tmp) {
@@ -701,102 +702,104 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     }
   }
 
-  /* CATALOG_TYPE */
-  if ((num = cfg_get_size(cfg, &conf->ftype))) {
-    CHECK_ARRAY_LENGTH(CATALOG_TYPE, cfg, conf->ftype, "%d", num, conf->ninput);
-  }
-  conf->ascii = false;
-  for (int i = 0; i < conf->ninput; i++) {
-    int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-    switch (type) {
-      case FCFC_FFMT_ASCII:
-        conf->ascii = true;
-        break;
-      case FCFC_FFMT_FITS:
-#ifdef WITH_CFITSIO
-        break;
-#else
-        P_ERR("FITS format is not enabled\n"
-            "Please re-compile the code with option -DWITH_CFITSIO\n");
-        return FCFC_ERR_CFG;
-#endif
-      case FCFC_FFMT_HDF5:
-#ifdef WITH_HDF5
-        break;
-#else
-        P_ERR("HDF5 format is not enabled\n"
-            "Please re-compile the code with opetion -DWITH_HDF5\n");
-        return FCFC_ERR_CFG;
-#endif
-      default:
-        P_ERR("invalid " FMT_KEY(CATALOG_TYPE) ": %d\n", type);
-        return FCFC_ERR_CFG;
-    }
-  }
+//  /* CATALOG_TYPE */
+//  if ((num = cfg_get_size(cfg, &conf->ftype))) {
+//    CHECK_ARRAY_LENGTH(CATALOG_TYPE, cfg, conf->ftype, "%d", num, conf->ninput);
+//  }
+//  conf->ascii = false;
+//  for (int i = 0; i < conf->ninput; i++) {
+//    int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
+//    switch (type) {
+//      case FCFC_FFMT_ASCII:
+//        conf->ascii = true;
+//        break;
+//      case FCFC_FFMT_FITS:
+//#ifdef WITH_CFITSIO
+//        break;
+//#else
+//        P_ERR("FITS format is not enabled\n"
+//            "Please re-compile the code with option -DWITH_CFITSIO\n");
+//        return FCFC_ERR_CFG;
+//#endif
+//      case FCFC_FFMT_HDF5:
+//#ifdef WITH_HDF5
+//        break;
+//#else
+//        P_ERR("HDF5 format is not enabled\n"
+//            "Please re-compile the code with opetion -DWITH_HDF5\n");
+//        return FCFC_ERR_CFG;
+//#endif
+//      default:
+//        P_ERR("invalid " FMT_KEY(CATALOG_TYPE) ": %d\n", type);
+//        return FCFC_ERR_CFG;
+//    }
+//  }
+//
+//  /* Check format settings for ASCII catalogues. */
+//  if (conf->ascii) {
+//    /* ASCII_SKIP */
+//    if ((num = cfg_get_size(cfg, &conf->skip))) {
+//      CHECK_ARRAY_LENGTH(ASCII_SKIP, cfg, conf->skip, "%ld", num, conf->ninput);
+//      for (int i = 0; i < conf->ninput; i++) {
+//        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
+//        if (type == FCFC_FFMT_ASCII && conf->skip[i] < 0) {
+//          P_ERR(FMT_KEY(ASCII_SKIP) " cannot be negative\n");
+//          return FCFC_ERR_CFG;
+//        }
+//      }
+//    }
 
-  /* Check format settings for ASCII catalogues. */
-  if (conf->ascii) {
-    /* ASCII_SKIP */
-    if ((num = cfg_get_size(cfg, &conf->skip))) {
-      CHECK_ARRAY_LENGTH(ASCII_SKIP, cfg, conf->skip, "%ld", num, conf->ninput);
-      for (int i = 0; i < conf->ninput; i++) {
-        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-        if (type == FCFC_FFMT_ASCII && conf->skip[i] < 0) {
-          P_ERR(FMT_KEY(ASCII_SKIP) " cannot be negative\n");
-          return FCFC_ERR_CFG;
-        }
-      }
-    }
-
-    /* ASCII_COMMENT */
-    if ((num = cfg_get_size(cfg, &conf->comment))) {
-      CHECK_ARRAY_LENGTH(ASCII_COMMENT, cfg, conf->comment, "%c",
-          num, conf->ninput);
-      for (int i = 0; i < conf->ninput; i++) {
-        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-        if (type == FCFC_FFMT_ASCII) {
-          if (conf->comment[i] && !isgraph(conf->comment[i])) {
-            P_ERR("invalid " FMT_KEY(ASCII_COMMENT) ": '%c' (ASCII code: %d)\n",
-                conf->comment[i], conf->comment[i]);
-            return FCFC_ERR_CFG;
-          }
-        }
-      }
-    }
-
-    /* ASCII_FORMATTER */
-    CHECK_EXIST_ARRAY(ASCII_FORMATTER, cfg, &conf->fmtr, num);
-    CHECK_STR_ARRAY_LENGTH(ASCII_FORMATTER, cfg, conf->fmtr, num, conf->ninput);
-  }
-
-  /* POSITION */
-  CHECK_EXIST_ARRAY(POSITION, cfg, &conf->pos, num);
-  CHECK_STR_ARRAY_LENGTH(POSITION, cfg, conf->pos, num, conf->ninput * 3);
-
+ //   /* ASCII_COMMENT */
+ //   if ((num = cfg_get_size(cfg, &conf->comment))) {
+ //     CHECK_ARRAY_LENGTH(ASCII_COMMENT, cfg, conf->comment, "%c",
+ //         num, conf->ninput);
+ //     for (int i = 0; i < conf->ninput; i++) {
+ //       int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
+ //       if (type == FCFC_FFMT_ASCII) {
+ //         if (conf->comment[i] && !isgraph(conf->comment[i])) {
+ //           P_ERR("invalid " FMT_KEY(ASCII_COMMENT) ": '%c' (ASCII code: %d)\n",
+ //               conf->comment[i], conf->comment[i]);
+ //           return FCFC_ERR_CFG;
+ //         }
+ //       }
+ //     }
+ //   }
+//
+ //   /* ASCII_FORMATTER */
+ //   CHECK_EXIST_ARRAY(ASCII_FORMATTER, cfg, &conf->fmtr, num);
+ //   CHECK_STR_ARRAY_LENGTH(ASCII_FORMATTER, cfg, conf->fmtr, num, conf->ninput);
+ // }
+//
+ // /* POSITION */
+ // CHECK_EXIST_ARRAY(POSITION, cfg, &conf->pos, num);
+ // CHECK_STR_ARRAY_LENGTH(POSITION, cfg, conf->pos, num, conf->ninput * 3);
+//
   /* WEIGHT */
   if (!(conf->has_wt = malloc(conf->ninput * sizeof(bool)))) {
     P_ERR("failed to allocate memory for " FMT_KEY(WEIGHT) "\n");
     return FCFC_ERR_MEMORY;
   }
-  if ((num = cfg_get_size(cfg, &conf->wt))) {
-    CHECK_STR_ARRAY_LENGTH(WEIGHT, cfg, conf->wt, num, conf->ninput);
-    for (int i = 0; i < conf->ninput; i++) {
-      /* Disable weighting if the weight is 1 or empty. */
-      if ((conf->wt[i][0] == '1' && conf->wt[i][1] == '\0') ||
-          (((conf->wt[i][0] == '\'' && conf->wt[i][1] == '\'') ||
-          (conf->wt[i][0] == '"' && conf->wt[i][1] == '"')) &&
-          conf->wt[i][2] == '\0')) conf->has_wt[i] = false;
-      else conf->has_wt[i] = true;
-    }
-  }
-  else {
-    for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = false;
-  }
-
-  /* SELECTION */
-  if ((num = cfg_get_size(cfg, &conf->sel))) {
-    CHECK_STR_ARRAY_LENGTH(SELECTION, cfg, conf->sel, num, conf->ninput);
-  }
+  // We will manage weighting defaults from p/cython 
+  for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = true;
+//  if ((num = cfg_get_size(cfg, &conf->wt))) {
+//    CHECK_STR_ARRAY_LENGTH(WEIGHT, cfg, conf->wt, num, conf->ninput);
+//    for (int i = 0; i < conf->ninput; i++) {
+//      /* Disable weighting if the weight is 1 or empty. */
+//      if ((conf->wt[i][0] == '1' && conf->wt[i][1] == '\0') ||
+//          (((conf->wt[i][0] == '\'' && conf->wt[i][1] == '\'') ||
+//          (conf->wt[i][0] == '"' && conf->wt[i][1] == '"')) &&
+//          conf->wt[i][2] == '\0')) conf->has_wt[i] = false;
+//      else conf->has_wt[i] = true;
+//    }
+//  }
+//  else {
+//    for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = false;
+//  }
+//
+//  /* SELECTION */
+//  if ((num = cfg_get_size(cfg, &conf->sel))) {
+//    CHECK_STR_ARRAY_LENGTH(SELECTION, cfg, conf->sel, num, conf->ninput);
+//  }
 
   /* BOX_SIZE */
   CHECK_EXIST_ARRAY(BOX_SIZE, cfg, &conf->bsize, num);
@@ -904,7 +907,7 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
         return FCFC_ERR_CFG;
       }
     }
-    /* CF_OUTPUT_FILE */
+    /* CF_OUTPUT_FILE */ 
     CHECK_EXIST_ARRAY(CF_OUTPUT_FILE, cfg, &conf->cfout, num);
     CHECK_STR_ARRAY_LENGTH(CF_OUTPUT_FILE, cfg, conf->cfout, num, conf->ncf);
     for (int i = 0; i < conf->ncf; i++) {
@@ -1153,12 +1156,13 @@ static void conf_print(const CONF *conf
       printf("\n                    %s", conf->fmtr[i]);
   }
 
-  printf("\n  POSITION        = %s , %s , %s",
-      conf->pos[0], conf->pos[1], conf->pos[2]);
-  for (int i = 1; i < conf->ninput; i++) {
-    printf("\n                    %s , %s , %s",
-        conf->pos[i * 3], conf->pos[i * 3 + 1], conf->pos[i * 3 + 2]);
-  }
+  //printf("\n  POSITION        = %s , %s , %s",
+  //    conf->pos[0], conf->pos[1], conf->pos[2]);
+  //
+  //for (int i = 1; i < conf->ninput; i++) {
+  //  printf("\n                    %s , %s , %s",
+  //      conf->pos[i * 3], conf->pos[i * 3 + 1], conf->pos[i * 3 + 2]);
+  //}
 
   if (conf->wt) {
     printf("\n  WEIGHT          = %s", conf->wt[0]);

@@ -42,7 +42,7 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
       P_EXT("failed to load configuration parameters\n");
       FCFC_QUIT(FCFC_ERR_CONF);
     }
-
+  
     if (!(cf = cf_setup(conf
 #ifdef OMP
         , &para
@@ -53,7 +53,8 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
       conf_destroy(conf);
       FCFC_QUIT(FCFC_ERR_CF);
     }
-  cf->data = dat;
+    
+  cf->data = dat; 
 #ifdef MPI
   }
 
@@ -74,6 +75,9 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
     FCFC_QUIT(FCFC_ERR_CF);
   }
 
+/* Deep copying labels to name results */
+cf->label = malloc(sizeof(char) * cf->ncat);
+memcpy(cf->label, conf->label, cf->ncat);
 conf_destroy(conf);
 //  cf_destroy(cf);
 #ifdef MPI
@@ -82,5 +86,6 @@ conf_destroy(conf);
     FCFC_QUIT(FCFC_ERR_MPI);
   }
 #endif
+
 return cf;
 }

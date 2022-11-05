@@ -165,7 +165,7 @@ static int eval_pairs(const CONF *conf, CF *cf
         for (size_t k = 0; k < cf->ntot; k++)
           cf->ncnt[i][k] = cf->cnt[i][k].i / cf->norm[i];
       }
-
+  
       /* Save pair counts. */
       int e = save_res(conf, cf, i, FCFC_OUTPUT_PAIR_COUNT);
       if (e) {
@@ -407,6 +407,7 @@ int eval_cf(const CONF *conf, CF *cf
     , const PARA *para
 #endif
     ) {
+      
   int e;
   if ((e = eval_pairs(conf, cf
 #ifdef MPI
@@ -416,6 +417,7 @@ int eval_cf(const CONF *conf, CF *cf
 #ifdef MPI
   if (para->rank == para->root) {
 #endif
+
     if (cf->ncf) {
       if ((e = eval_cf_exp(conf, cf))) return e;
       if (cf->nl) if ((e = eval_cf_mp(conf, cf))) return e;

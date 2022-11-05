@@ -138,6 +138,7 @@ cdef extern from "load_conf.h":
 
     ctypedef struct CONF:
         pass
+    void conf_destroy(CONF* conf) nogil
     
 
 cdef extern from *:
@@ -170,12 +171,45 @@ cdef void npy_to_data(DATA* c_data,
         c_data[data_id].w[j] = npy_data[j,3]
 
 
+cdef dict retrieve_paircounts(CF* cf):
+    # Results of count(s,mu) or xi(s,mu) as a list. 
+    result = {}
+    result['smin'] = np.empty((cf.ns, cf.nmu))
+    result['smax'] = np.copy(result['smin'])
     
+    result['mumin'] = np.copy(result['smin'])
+    result['mumax'] = np.copy(result['smin'])
+    for j in range(cf.nmu):
+        for i in range(cf.ns):
+            result['smin'][i,j] = cf.sbin_raw[i]
+            result['smax'][i,j] = cf.sbin_raw[i+1]
+            result['mumin'][i,j] = j / <double> cf.nmu
+            result['mumax'][i,j] = (j + 1) / <double> cf.nmu
 
+    for idx in range(cf.npc):
+        pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
+        result[pcnt_label] = np.copy(result['smin'])
+        for j in range(cf.nmu):
+            for i in range(cf.ns):
+                result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
+        #        
+        #        WRITE_LINE(OFMT_DBL " " OFMT_DBL " " OFMT_DBL " " OFMT_DBL " "
+        #            OFMT_DBL "\n", cf.sbin_raw[i], cf.sbin_raw[i + 1],
+        #            j / (double) cf.nmu, (j + 1) / (double) cf.nmu,
+        #            cf.ncnt[idx][i + j * cf.ns]);
+    return result
 
-def py_compute_cf(list data_cats, #Assumes double precision input/FFTW!
+cdef double[:,:,:] retrieve_multipoles(CF* cf):
+    results = np.empty((cf.ncf, cf.nl, cf.ns))
+    for idx in range(cf.ncf):
+        for j in range(cf.nl):
+            for i in range(cf.ns):
+                results[idx, j, i] = cf.mp[idx][i + j * cf.ns]
+    return results
+
+def py_compute_cf(list data_cats,
                 fcfc_conf_file,
-                output_file = None) :
+                ) :
 
     cdef size_t i,j
     cdef CF* cf = cf_init()
@@ -183,17 +217,9 @@ def py_compute_cf(list data_cats, #Assumes double precision input/FFTW!
     
     cdef DATA* dat = <DATA*> calloc(<unsigned int> n_catalogs, sizeof(DATA))
     for i in range(n_catalogs):
-        data_init(dat + 1)
+        data_init(dat + i)
         npy_to_data(dat, data_cats[i], i)
     
-    save_out = output_file is not None
-    if not save_out:
-        # Define dummy names for IO so conf does not crash
-        test_output = "--cf-output=test/test.out"
-    else:
-        test_output = f"--cf-output={output_file}"
-    test_output_bytes = test_output.encode('utf-8') + b'\x00'
-    cdef char* test_output_string = test_output_bytes
 
     # Define name of the configuration file to use
     # TODO: Generate temporary configuration file at fixed location
@@ -208,19 +234,28 @@ def py_compute_cf(list data_cats, #Assumes double precision input/FFTW!
 
     # Define dummy argc, argv to send to powspec main function
     # This should remain similar once we generate a conf file.
-    cdef int argc = 3
+    cdef int argc = 2
     cdef char* argv[3]
     argv[0] = arg0_str
     argv[1] = conf_string
-    argv[2] = test_output_string
-    
-    cf = compute_cf(argc, argv, dat)
-    cdef int idx = 0
-    for j in range(cf.nl):
-        for i in range(cf.ns):
-            print(i, j, cf.mp[idx][i + j * cf.ns])
 
-    #cf_destroy(cf)
+    print(n_catalogs)
+    cf = compute_cf(argc, argv, dat)
+    if cf is NULL: raise ValueError("Could not compute correlations.")
+    cdef int idx = 0
+
+    results = {}
+    results['pairs'] = retrieve_paircounts(cf)
+    results['s'] = np.empty(cf.ns)
+    for i in range(cf.ns):
+        results['s'][i] = 0.5 * (cf.sbin_raw[i] + cf.sbin_raw[i+1])
+    results['multipoles'] = retrieve_multipoles(cf)
+    
+    
+    
+    cf_destroy(cf)
+
+    return results
 
 
 
