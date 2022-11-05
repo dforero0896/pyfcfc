@@ -174,30 +174,115 @@ cdef void npy_to_data(DATA* c_data,
 cdef dict retrieve_paircounts(CF* cf):
     # Results of count(s,mu) or xi(s,mu) as a list. 
     result = {}
-    result['smin'] = np.empty((cf.ns, cf.nmu))
-    result['smax'] = np.copy(result['smin'])
-    
-    result['mumin'] = np.copy(result['smin'])
-    result['mumax'] = np.copy(result['smin'])
-    for j in range(cf.nmu):
-        for i in range(cf.ns):
-            result['smin'][i,j] = cf.sbin_raw[i]
-            result['smax'][i,j] = cf.sbin_raw[i+1]
-            result['mumin'][i,j] = j / <double> cf.nmu
-            result['mumax'][i,j] = (j + 1) / <double> cf.nmu
-
-    for idx in range(cf.npc):
-        pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
-        result[pcnt_label] = np.copy(result['smin'])
+    if cf.mp is not NULL:
+        result['smin'] = np.empty((cf.ns, cf.nmu))
+        result['smax'] = np.copy(result['smin'])
+        
+        result['mumin'] = np.copy(result['smin'])
+        result['mumax'] = np.copy(result['smin'])
         for j in range(cf.nmu):
             for i in range(cf.ns):
-                result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
-        #        
-        #        WRITE_LINE(OFMT_DBL " " OFMT_DBL " " OFMT_DBL " " OFMT_DBL " "
-        #            OFMT_DBL "\n", cf.sbin_raw[i], cf.sbin_raw[i + 1],
-        #            j / (double) cf.nmu, (j + 1) / (double) cf.nmu,
-        #            cf.ncnt[idx][i + j * cf.ns]);
+                result['smin'][i,j] = cf.sbin_raw[i]
+                result['smax'][i,j] = cf.sbin_raw[i+1]
+                result['mumin'][i,j] = j / <double> cf.nmu
+                result['mumax'][i,j] = (j + 1) / <double> cf.nmu
+
+        for idx in range(cf.npc):
+            pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
+            result[pcnt_label] = np.copy(result['smin'])
+            for j in range(cf.nmu):
+                for i in range(cf.ns):
+                    result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
+    elif cf.wp is not NULL:
+        result['s_perp_min'] = np.empty((cf.ns, cf.np))
+        result['s_perp_max'] = np.copy(result['s_perp_min'])
+        
+        result['pimin'] = np.copy(result['s_perp_min'])
+        result['pimax'] = np.copy(result['s_perp_min'])
+        for j in range(cf.np):
+            for i in range(cf.ns):
+                result['s_perp_min'][i,j] = cf.sbin_raw[i]
+                result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+                result['pimin'][i,j] = cf.pbin_raw[j]
+                result['pimax'][i,j] = cf.pbin_raw[j+1]
+
+        for idx in range(cf.npc):
+            pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
+            result[pcnt_label] = np.copy(result['s_perp_min'])
+            for j in range(cf.np):
+                for i in range(cf.ns):
+                    result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
+    else:
+        result['smin'] = np.empty(cf.ns)
+        result['smax'] = np.copy(result['smin'])
+        for i in range(cf.ns):
+                result['smin'][i] = cf.sbin_raw[i]
+                result['smax'][i] = cf.sbin_raw[i+1]
+        for idx in range(cf.npc):
+            pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
+            result[pcnt_label] = np.copy(result['smin'])
+            for i in range(cf.ns):
+                result[pcnt_label][i] = cf.ncnt[idx][i]
+        
     return result
+
+
+cdef dict retrieve_correlations(CF* cf):
+    # Results of count(s,mu) or xi(s,mu) as a list. 
+    result = {}
+    if cf.mp is not NULL:
+        result['smin'] = np.empty((cf.ns, cf.nmu))
+        result['smax'] = np.copy(result['smin'])
+        
+        result['mumin'] = np.copy(result['smin'])
+        result['mumax'] = np.copy(result['smin'])
+        for j in range(cf.nmu):
+            for i in range(cf.ns):
+                result['smin'][i,j] = cf.sbin_raw[i]
+                result['smax'][i,j] = cf.sbin_raw[i+1]
+                result['mumin'][i,j] = j / <double> cf.nmu
+                result['mumax'][i,j] = (j + 1) / <double> cf.nmu
+
+        for idx in range(cf.ncf):
+            pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
+            result[pcnt_label] = np.copy(result['smin'])
+            for j in range(cf.nmu):
+                for i in range(cf.ns):
+                    result[pcnt_label][i,j] = cf.cf[idx][i + j * cf.ns]
+    elif cf.wp is not NULL:
+        result['s_perp_min'] = np.empty((cf.ns, cf.np))
+        result['s_perp_max'] = np.copy(result['s_perp_min'])
+        
+        result['pimin'] = np.copy(result['s_perp_min'])
+        result['pimax'] = np.copy(result['s_perp_min'])
+        for j in range(cf.np):
+            for i in range(cf.ns):
+                result['s_perp_min'][i,j] = cf.sbin_raw[i]
+                result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+                result['pimin'][i,j] = cf.pbin_raw[j]
+                result['pimax'][i,j] = cf.pbin_raw[j+1]
+
+        for idx in range(cf.ncf):
+            pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
+            result[pcnt_label] = np.copy(result['s_perp_min'])
+            for j in range(cf.np):
+                for i in range(cf.ns):
+                    result[pcnt_label][i,j] = cf.cf[idx][i + j * cf.ns]
+    else:
+        result['smin'] = np.empty(cf.ns)
+        result['smax'] = np.copy(result['smin'])
+        for i in range(cf.ns):
+                result['smin'][i] = cf.sbin_raw[i]
+                result['smax'][i] = cf.sbin_raw[i+1]
+        for idx in range(cf.ncf):
+            pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
+            result[pcnt_label] = np.copy(result['smin'])
+            for i in range(cf.ns):
+                result[pcnt_label][i] = cf.cf[idx][i]
+        
+    return result
+
+
 
 cdef double[:,:,:] retrieve_multipoles(CF* cf):
     results = np.empty((cf.ncf, cf.nl, cf.ns))
@@ -205,6 +290,13 @@ cdef double[:,:,:] retrieve_multipoles(CF* cf):
         for j in range(cf.nl):
             for i in range(cf.ns):
                 results[idx, j, i] = cf.mp[idx][i + j * cf.ns]
+    return results
+
+cdef double[:] retrieve_projected(CF* cf):
+    results = np.empty((cf.ncf, cf.ns))
+    for idx in range(cf.ncf):
+        for i in range(cf.ns):
+            results[idx, i] = cf.wp[idx][i]
     return results
 
 def py_compute_cf(list data_cats,
@@ -245,11 +337,21 @@ def py_compute_cf(list data_cats,
     cdef int idx = 0
 
     results = {}
+    results['number'] = [cf.data[i].n for i in range(cf.ncat)]
+    results['weighted_number'] = [cf.data[i].wt for i in range(cf.ncat)]
+    results['normalization'] = [cf.norm[i] for i in range(cf.npc)]
+
+
+
+
     results['pairs'] = retrieve_paircounts(cf)
     results['s'] = np.empty(cf.ns)
     for i in range(cf.ns):
         results['s'][i] = 0.5 * (cf.sbin_raw[i] + cf.sbin_raw[i+1])
-    results['multipoles'] = retrieve_multipoles(cf)
+    if cf.mp is not NULL:
+        results['multipoles'] = retrieve_multipoles(cf)
+    if cf.wp is not NULL:
+        results['projected'] = retrieve_projected(cf)
     
     
     
