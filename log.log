@@ -1,0 +1,93 @@
+In file included from FCFC-main/src/fcfc/2pt_box/count_func.c:21:0:
+/usr/include/math.h:642:0: warning: "M_PI" redefined
+ # define M_PI  3.14159265358979323846 /* pi */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/define.h:34:0,
+                 from FCFC-main/src/fcfc/2pt_box/count_func.c:13:
+FCFC-main/src/util/define_comm.h:126:0: note: this is the location of the previous definition
+   #define M_PI          0x1.921fb54442d18p+1    /* PI */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/eval_cf.c:21:0:
+/usr/include/math.h:642:0: warning: "M_PI" redefined
+ # define M_PI  3.14159265358979323846 /* pi */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/define.h:34:0,
+                 from FCFC-main/src/fcfc/2pt_box/eval_cf.h:34,
+                 from FCFC-main/src/fcfc/2pt_box/eval_cf.c:13:
+FCFC-main/src/util/define_comm.h:126:0: note: this is the location of the previous definition
+   #define M_PI          0x1.921fb54442d18p+1    /* PI */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/load_conf.c:23:0:
+/usr/include/math.h:642:0: warning: "M_PI" redefined
+ # define M_PI  3.14159265358979323846 /* pi */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/define.h:34:0,
+                 from FCFC-main/src/fcfc/2pt_box/load_conf.c:13:
+FCFC-main/src/util/define_comm.h:126:0: note: this is the location of the previous definition
+   #define M_PI          0x1.921fb54442d18p+1    /* PI */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/setup_cf.c:18:0:
+/usr/include/math.h:642:0: warning: "M_PI" redefined
+ # define M_PI  3.14159265358979323846 /* pi */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/define.h:34:0,
+                 from FCFC-main/src/fcfc/2pt_box/eval_cf.h:34,
+                 from FCFC-main/src/fcfc/2pt_box/setup_cf.c:13:
+FCFC-main/src/util/define_comm.h:126:0: note: this is the location of the previous definition
+   #define M_PI          0x1.921fb54442d18p+1    /* PI */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/define.h:34:0,
+                 from FCFC-main/src/fcfc/2pt_box/eval_cf.h:34,
+                 from FCFC-main/src/fcfc/2pt_box/fcfc.c:13:
+FCFC-main/src/fcfc/2pt_box/fcfc.c: In function 'compute_cf':
+FCFC-main/src/util/define_comm.h:246:40: warning: return makes pointer from integer without a cast [-Wint-conversion]
+   #define FCFC_QUIT(err)        return (err)
+                                        ^
+FCFC-main/src/fcfc/2pt_box/fcfc.c:43:7: note: in expansion of macro 'FCFC_QUIT'
+       FCFC_QUIT(FCFC_ERR_CONF);
+       ^~~~~~~~~
+FCFC-main/src/util/define_comm.h:246:40: warning: return makes pointer from integer without a cast [-Wint-conversion]
+   #define FCFC_QUIT(err)        return (err)
+                                        ^
+FCFC-main/src/fcfc/2pt_box/fcfc.c:54:7: note: in expansion of macro 'FCFC_QUIT'
+       FCFC_QUIT(FCFC_ERR_CF);
+       ^~~~~~~~~
+FCFC-main/src/util/define_comm.h:246:40: warning: return makes pointer from integer without a cast [-Wint-conversion]
+   #define FCFC_QUIT(err)        return (err)
+                                        ^
+FCFC-main/src/fcfc/2pt_box/fcfc.c:72:5: note: in expansion of macro 'FCFC_QUIT'
+     FCFC_QUIT(FCFC_ERR_CF);
+     ^~~~~~~~~
+In file included from FCFC-main/src/fcfc/2pt_box/read_res.c:21:0:
+/usr/include/math.h:642:0: warning: "M_PI" redefined
+ # define M_PI  3.14159265358979323846 /* pi */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/define.h:34:0,
+                 from FCFC-main/src/fcfc/2pt_box/read_res.c:13:
+FCFC-main/src/util/define_comm.h:126:0: note: this is the location of the previous definition
+   #define M_PI          0x1.921fb54442d18p+1    /* PI */
+ 
+In file included from FCFC-main/src/math/pca.c:14:0:
+/usr/include/math.h:642:0: warning: "M_PI" redefined
+ # define M_PI  3.14159265358979323846 /* pi */
+ 
+In file included from FCFC-main/src/math/pca.h:34:0,
+                 from FCFC-main/src/math/pca.c:13:
+FCFC-main/src/util/define_comm.h:126:0: note: this is the location of the previous definition
+   #define M_PI          0x1.921fb54442d18p+1    /* PI */
+ 
+In file included from FCFC-main/src/tree/balltree.c:17:0:
+/usr/include/math.h:642:0: warning: "M_PI" redefined
+ # define M_PI  3.14159265358979323846 /* pi */
+ 
+In file included from FCFC-main/src/fcfc/2pt_box/define.h:34:0,
+                 from FCFC-main/src/tree/balltree.h:34,
+                 from FCFC-main/src/tree/balltree.c:13:
+FCFC-main/src/util/define_comm.h:126:0: note: this is the location of the previous definition
+   #define M_PI          0x1.921fb54442d18p+1    /* PI */
+ 
+warning: FCFC-main/src/fcfc/2pt_box/pyfcfc.pyx:12:22: Obtaining 'char *' from externally modifiable global Python value
+warning: FCFC-main/src/fcfc/2pt_box/pyfcfc.pyx:97:46: Use boundscheck(False) for faster access
+warning: FCFC-main/src/fcfc/2pt_box/pyfcfc.pyx:98:39: Use boundscheck(False) for faster access
+/global/homes/d/dforero/.conda/envs/nbk-env/lib/python3.8/distutils/dist.py:274: UserWarning: Unknown distribution option: 'annotate'
+  warnings.warn(msg)
