@@ -169,4 +169,7 @@ int eval_cf(const CONF *conf, CF *cf
 #endif
     );
 
+CF *cf_init(void);
+
+
 #endif

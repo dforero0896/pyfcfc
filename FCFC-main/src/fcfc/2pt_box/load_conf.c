@@ -659,7 +659,7 @@ Return:
 ******************************************************************************/
 static int conf_verify(const cfg_t *cfg, CONF *conf) {
   int e, num;
-  /*
+  
   /* CATALOG */
 //  CHECK_EXIST_ARRAY(CATALOG, cfg, &conf->input, conf->ninput);
 //  if (conf->ninput > 26) {
@@ -1102,59 +1102,59 @@ static void conf_print(const CONF *conf
   printf("\n  CONFIG_FILE     = %s", conf->fconf);
 
   /* Input catalogs. */
-  printf("\n  CATALOG         = %s", conf->input[0]);
-  for (int i = 1; i < conf->ninput; i++)
-    printf("\n                    %s", conf->input[i]);
+//  printf("\n  CATALOG         = %s", conf->input[0]);
+//  for (int i = 1; i < conf->ninput; i++)
+//    printf("\n                    %s", conf->input[i]);
   printf("\n  CATALOG_LABEL   = '%c'", conf->label[0]);
   for (int i = 1; i < conf->ninput; i++) printf(" , '%c'", conf->label[i]);
 
-  const char *ftype[] = {"ASCII", "FITS", "HDF5"};
-  const int ntype = sizeof(ftype) / sizeof(ftype[0]);
-  if (!conf->ftype) {
-    printf("\n  CATALOG_TYPE    = %d (%s)",
-        DEFAULT_FILE_TYPE,
-        DEFAULT_FILE_TYPE < ntype ? ftype[DEFAULT_FILE_TYPE] : "unknown");
-  }
-  else {
-    printf("\n  CATALOG_TYPE    = %d (%s)",
-        conf->ftype[0],
-        conf->ftype[0] < ntype ? ftype[conf->ftype[0]] : "unknown");
-    for (int i = 1; i < conf->ninput; i++) {
-      printf("\n                    %d (%s)",
-          conf->ftype[i],
-          conf->ftype[i] < ntype ? ftype[conf->ftype[i]] : "unknown");
-    }
-  }
-
-  if (conf->ascii) {
-    if (!conf->skip) {
-      printf("\n  ASCII_SKIP      = %ld", (long) DEFAULT_ASCII_SKIP);
-    }
-    else {
-      printf("\n  ASCII_SKIP      = %ld", conf->skip[0]);
-      for (int i = 1; i < conf->ninput; i++) printf(" , %ld", conf->skip[i]);
-    }
-
-    if (!conf->comment) {
-      if (DEFAULT_ASCII_COMMENT == 0) printf("\n  ASCII_COMMENT   = ''");
-      else printf("\n  ASCII_COMMENT   = '%c'", DEFAULT_ASCII_COMMENT);
-    }
-    else {
-      int type = conf->ftype ? conf->ftype[0] : DEFAULT_FILE_TYPE;
-      if (type != FCFC_FFMT_ASCII || conf->comment[0] == 0)
-        printf("\n  ASCII_COMMENT   = ''");
-      else printf("\n  ASCII_COMMENT   = '%c'", conf->comment[0]);
-      for (int i = 1; i < conf->ninput; i++) {
-        type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-        if (type != FCFC_FFMT_ASCII || conf->comment[i] == 0) printf(" , ''");
-        else printf(" , '%c'", conf->comment[i]);
-      }
-    }
-
-    printf("\n  ASCII_FORMATTER = %s", conf->fmtr[0]);
-    for (int i = 1; i < conf->ninput; i++)
-      printf("\n                    %s", conf->fmtr[i]);
-  }
+//  const char *ftype[] = {"ASCII", "FITS", "HDF5"};
+//  const int ntype = sizeof(ftype) / sizeof(ftype[0]);
+//  if (!conf->ftype) {
+//    printf("\n  CATALOG_TYPE    = %d (%s)",
+//        DEFAULT_FILE_TYPE,
+//        DEFAULT_FILE_TYPE < ntype ? ftype[DEFAULT_FILE_TYPE] : "unknown");
+//  }
+//  else {
+//    printf("\n  CATALOG_TYPE    = %d (%s)",
+//        conf->ftype[0],
+//        conf->ftype[0] < ntype ? ftype[conf->ftype[0]] : "unknown");
+//    for (int i = 1; i < conf->ninput; i++) {
+//      printf("\n                    %d (%s)",
+//          conf->ftype[i],
+//          conf->ftype[i] < ntype ? ftype[conf->ftype[i]] : "unknown");
+//    }
+//  }
+//
+//  if (conf->ascii) {
+//    if (!conf->skip) {
+//      printf("\n  ASCII_SKIP      = %ld", (long) DEFAULT_ASCII_SKIP);
+//    }
+//    else {
+//      printf("\n  ASCII_SKIP      = %ld", conf->skip[0]);
+//      for (int i = 1; i < conf->ninput; i++) printf(" , %ld", conf->skip[i]);
+//    }
+//
+//    if (!conf->comment) {
+//      if (DEFAULT_ASCII_COMMENT == 0) printf("\n  ASCII_COMMENT   = ''");
+//      else printf("\n  ASCII_COMMENT   = '%c'", DEFAULT_ASCII_COMMENT);
+//    }
+//    else {
+//      int type = conf->ftype ? conf->ftype[0] : DEFAULT_FILE_TYPE;
+//      if (type != FCFC_FFMT_ASCII || conf->comment[0] == 0)
+//        printf("\n  ASCII_COMMENT   = ''");
+//      else printf("\n  ASCII_COMMENT   = '%c'", conf->comment[0]);
+//      for (int i = 1; i < conf->ninput; i++) {
+//        type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
+//        if (type != FCFC_FFMT_ASCII || conf->comment[i] == 0) printf(" , ''");
+//        else printf(" , '%c'", conf->comment[i]);
+//      }
+//    }
+//
+//    printf("\n  ASCII_FORMATTER = %s", conf->fmtr[0]);
+//    for (int i = 1; i < conf->ninput; i++)
+//      printf("\n                    %s", conf->fmtr[i]);
+//  }
 
   //printf("\n  POSITION        = %s , %s , %s",
   //    conf->pos[0], conf->pos[1], conf->pos[2]);
@@ -1164,17 +1164,17 @@ static void conf_print(const CONF *conf
   //      conf->pos[i * 3], conf->pos[i * 3 + 1], conf->pos[i * 3 + 2]);
   //}
 
-  if (conf->wt) {
-    printf("\n  WEIGHT          = %s", conf->wt[0]);
-    for (int i = 1; i < conf->ninput; i++)
-      printf("\n                    %s", conf->wt[i]);
-  }
-
-  if (conf->sel) {
-    printf("\n  SELECTION       = %s", conf->sel[0]);
-    for (int i = 1; i < conf->ninput; i++)
-      printf("\n                    %s", conf->sel[i]);
-  }
+//  if (conf->wt) {
+//    printf("\n  WEIGHT          = %s", conf->wt[0]);
+//    for (int i = 1; i < conf->ninput; i++)
+//      printf("\n                    %s", conf->wt[i]);
+//  }
+//
+//  if (conf->sel) {
+//    printf("\n  SELECTION       = %s", conf->sel[0]);
+//    for (int i = 1; i < conf->ninput; i++)
+//      printf("\n                    %s", conf->sel[i]);
+//  }
   printf("\n  BOX_SIZE        = " OFMT_DBL " , " OFMT_DBL " , " OFMT_DBL,
       conf->bsize[0], conf->bsize[1], conf->bsize[2]);
 

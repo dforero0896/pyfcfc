@@ -40,7 +40,7 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
         ))) {
       printf(FMT_FAIL);
       P_EXT("failed to load configuration parameters\n");
-      FCFC_QUIT(FCFC_ERR_CONF);
+      return NULL;
     }
   
     if (!(cf = cf_setup(conf
@@ -51,10 +51,11 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
       printf(FMT_FAIL);
       P_EXT("failed to initialise correlation function evaluations\n");
       conf_destroy(conf);
-      FCFC_QUIT(FCFC_ERR_CF);
+      return NULL;
     }
     
   cf->data = dat; 
+  
 #ifdef MPI
   }
 
@@ -72,7 +73,7 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
     printf(FMT_FAIL);
     P_EXT("failed to evaluate correlation functions\n");
     conf_destroy(conf); cf_destroy(cf);
-    FCFC_QUIT(FCFC_ERR_CF);
+    return NULL;
   }
 
 /* Deep copying labels to name results */
@@ -83,7 +84,7 @@ conf_destroy(conf);
 #ifdef MPI
   if (MPI_Finalize()) {
     P_ERR("failed to finalize MPI\n");
-    FCFC_QUIT(FCFC_ERR_MPI);
+    return NULL;
   }
 #endif
 

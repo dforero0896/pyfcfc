@@ -29,7 +29,7 @@ Arguments:
 Return:
   Address of the structure for correlation function evaluations.
 ******************************************************************************/
-static CF *cf_init(void) {
+CF *cf_init(void) {
   CF *cf = calloc(1, sizeof(CF));
   if (!cf) return NULL;
 
@@ -706,11 +706,11 @@ CF *cf_setup(const CONF *conf
   }
 
   /* Allocate memory for the catalogues, pair counts, and 2PCFs. */
-  if (!(cf->data = calloc((unsigned int) cf->ncat, sizeof(DATA)))) {
-    P_ERR("failed to allocate memory for the input catalogs\n");
-    cf_destroy(cf); return NULL;
-  }
-  for (int i = 0; i < cf->ncat; i++) data_init(cf->data + i);
+  //if (!(cf->data = calloc((unsigned int) cf->ncat, sizeof(DATA)))) {
+  //  P_ERR("failed to allocate memory for the input catalogs\n");
+  //  cf_destroy(cf); return NULL;
+  //}
+  //for (int i = 0; i < cf->ncat; i++) data_init(cf->data + i);
 
   if (!(cf->wt = malloc(sizeof(bool) * cf->npc)) ||
       !(cf->cat_wt = calloc(cf->ncat, sizeof(bool)))) {

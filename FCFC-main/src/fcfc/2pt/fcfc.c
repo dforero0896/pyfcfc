@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #endif
 
-int main(int argc, char *argv[]) {
+CF* compute_cf(int argc, char *argv[], DATA* dat) {
   CONF *conf = NULL;
   CF *cf = NULL;
 
@@ -38,9 +38,9 @@ int main(int argc, char *argv[]) {
         ))) {
       printf(FMT_FAIL);
       P_EXT("failed to load configuration parameters\n");
-      FCFC_QUIT(FCFC_ERR_CONF);
+      return NULL;
     }
-
+  
     if (!(cf = cf_setup(conf
 #ifdef OMP
         , &para
@@ -49,9 +49,11 @@ int main(int argc, char *argv[]) {
       printf(FMT_FAIL);
       P_EXT("failed to initialise correlation function evaluations\n");
       conf_destroy(conf);
-      FCFC_QUIT(FCFC_ERR_CF);
+      return NULL;
     }
-
+    
+  cf->data = dat; 
+  
 #ifdef MPI
   }
 
@@ -67,16 +69,18 @@ int main(int argc, char *argv[]) {
     printf(FMT_FAIL);
     P_EXT("failed to evaluate correlation functions\n");
     conf_destroy(conf); cf_destroy(cf);
-    FCFC_QUIT(FCFC_ERR_CF);
+    return NULL;
   }
-
+  /* Deep copying labels to name results */
+  cf->label = malloc(sizeof(char) * cf->ncat);
+  memcpy(cf->label, conf->label, cf->ncat);
   conf_destroy(conf);
-  cf_destroy(cf);
+  
 #ifdef MPI
   if (MPI_Finalize()) {
     P_ERR("failed to finalize MPI\n");
-    FCFC_QUIT(FCFC_ERR_MPI);
+    return NULL;
   }
 #endif
-  return 0;
+  return cf;
 }

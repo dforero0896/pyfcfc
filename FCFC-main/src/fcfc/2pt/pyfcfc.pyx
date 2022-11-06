@@ -8,10 +8,8 @@ from libc.stdio cimport FILE, fprintf, fopen, fclose, printf, fflush, stdout, st
 cimport libc.limits
 import numpy as np
 from scipy.special import legendre
-from cython cimport floating
 
-
-arg0_bytes = "FCFC_BOX".encode('utf-8') + b'\x00'
+arg0_bytes = "FCFC".encode('utf-8') + b'\x00'
 cdef char* arg0_str = arg0_bytes
 cdef extern from "define_comm.h":
     ctypedef double real
@@ -62,6 +60,13 @@ cdef extern from "define.h":
     cdef int FCFC_ERR_SAVE      =    (-15)
     cdef int FCFC_ERR_UNKNOWN   =    (-99)
 
+cdef extern from "cnvt_coord.h":
+
+    ctypedef struct COORD_CNVT:
+        size_t nsp;           #/* number of sample points, excluding (0,0)      */
+        double *z;            #/* redshifts                                     */
+        double *d;            #/* radial comoving distances                     */
+        double *ypp;          #/* second derivative for spline interpolation    */
 
 cdef extern from "eval_cf.h":
     
@@ -73,10 +78,9 @@ cdef extern from "eval_cf.h":
         double wt;            # weighted number of objects
 
     ctypedef struct CF:
-        real bsize[3];        # side lengths of the periodic box               */
         int bintype;          # binning scheme: iso, smu, or spi               */
         real *s2bin;          # edges of squared separation (or s_perp) bins   */
-        real *pbin;           # edges of pi bins                               */
+        real *p2bin;          # edges of squared pi bins                               */
         void *stab;           # lookup table for separation (or s_perp) bins   */
         void *ptab;           # lookup table for pi bins                       */
         uint8_t *mutab;       # lookup table for mu bins                       */
@@ -101,6 +105,7 @@ cdef extern from "eval_cf.h":
         int nthread;          #/* number of OpenMP threads                       */
         size_t ntot;          #/* total number of bins                           */
         real *sbin;           #/* edges of separation (or s_perp) bins           */
+        real *pbin;           #/* edges of separation (or s_perp) bins           */
         int verbose;          #/* indicate whether to show detailed outputs      */
         int npc;              #/* number of pair counts to be evaluated          */
         int *pc_idx[2];       #/* pairs to be counted, defined as input indices  */
@@ -111,10 +116,11 @@ cdef extern from "eval_cf.h":
         #endif#
         bint *wt;             #/* indicate whether using weights for pair counts */
         bint *cat_wt;         #/* indicate whether using weights in catalogues   */
+        const bint *cnvt;     #/* indicate whether to run coordinate conversion  */
+        COORD_CNVT *coord;    #/* structure for coordinate interpolation         */
         COUNT **cnt;          #/* array for storing evaluated pair counts        */
         double *norm;         #/* normalisation factors for pair counts          */
         double **ncnt;        #/* array for normalised pair counts               */
-        double *rr;           #/* array for analytical RR counts                 */
         int ncf;              #/* number of correlation functions to be computed */
         char **cf_exp;        #/* expression for correlation function estimators */
         ast_t **ast_cf;       #/* abstract syntax trees for 2PCF estimators      */
@@ -166,8 +172,8 @@ cdef void npy_to_data(DATA* c_data,
 
     for j in range(c_data[data_id].n):
         for i in range(3):
-            c_data[data_id].x[i][j] = <double> npy_data[j,i]
-        c_data[data_id].w[j] = <double> npy_data[j,3]
+            c_data[data_id].x[i][j] = npy_data[j,i]
+        c_data[data_id].w[j] = npy_data[j,3]
 
 
 cdef dict retrieve_paircounts(CF* cf):
@@ -277,7 +283,6 @@ cdef dict retrieve_correlations(CF* cf):
     return result
 
 
-
 cdef double[:,:,:] retrieve_multipoles(CF* cf):
     results = np.empty((cf.ncf, cf.nl, cf.ns))
     for idx in range(cf.ncf):
@@ -337,7 +342,7 @@ def py_compute_cf(list data_cats,
 
 
 
-    
+
     results['pairs'] = retrieve_paircounts(cf)
     results['cf'] = retrieve_correlations(cf)
     results['s'] = np.empty(cf.ns)
