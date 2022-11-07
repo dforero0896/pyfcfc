@@ -5,6 +5,7 @@ import numpy as np
 import sys
 sys.path.append("/global/homes/d/dforero/codes/pyfcfc/")
 from pyfcfc.boxes import py_compute_cf
+import pprint
 
 try:
     import pandas as pd
@@ -24,7 +25,10 @@ labels = ['Nat', "LS"]
 rand = 1000. * np.random.random((2 * nobj, 3)).astype(np.double)
 wran = np.ones(rand.shape[0])
 
+
+
 results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], "test/fcfc_box_ell.conf")
+
 
 fig, ax = pplt.subplots(nrows=2, ncols=2, share=0)
 for j in range(results['multipoles'].shape[0]):

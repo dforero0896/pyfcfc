@@ -1,5 +1,5 @@
 #cython: language_level=3
-#cython: boundscheck = True
+#cython: boundscheck = False
 import cython
 from cython.parallel import prange, threadid
 cimport openmp
@@ -144,6 +144,7 @@ cdef extern from "load_conf.h":
     ctypedef struct CONF:
         pass
     void conf_destroy(CONF* conf) nogil
+    void conf_template(void *args) nogil
     
 
 cdef extern from *:
@@ -170,7 +171,7 @@ cdef void npy_to_data(DATA* c_data,
         c_data[data_id].x[i] = <double *> malloc(c_data[data_id].n * sizeof(real))
     c_data[data_id].w = <double *> malloc(c_data[data_id].n * sizeof(double))
 
-    for j in range(c_data[data_id].n):
+    for j in prange(c_data[data_id].n, nogil=True):
         for i in range(3):
             c_data[data_id].x[i][j] = npy_data[j,i]
         c_data[data_id].w[j] = npy_data[j,3]

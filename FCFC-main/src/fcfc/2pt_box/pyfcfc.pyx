@@ -1,5 +1,5 @@
 #cython: language_level=3
-#cython: boundscheck = True
+#cython: boundscheck = False
 import cython
 from cython.parallel import prange, threadid
 cimport openmp
@@ -9,6 +9,7 @@ cimport libc.limits
 import numpy as np
 from scipy.special import legendre
 from cython cimport floating
+
 
 
 arg0_bytes = "FCFC_BOX".encode('utf-8') + b'\x00'
@@ -138,6 +139,7 @@ cdef extern from "load_conf.h":
     ctypedef struct CONF:
         pass
     void conf_destroy(CONF* conf) nogil
+    void conf_template(void *args) nogil
     
 
 cdef extern from *:
@@ -164,7 +166,7 @@ cdef void npy_to_data(DATA* c_data,
         c_data[data_id].x[i] = <double *> malloc(c_data[data_id].n * sizeof(real))
     c_data[data_id].w = <double *> malloc(c_data[data_id].n * sizeof(double))
 
-    for j in range(c_data[data_id].n):
+    for j in prange(c_data[data_id].n, nogil=True):
         for i in range(3):
             c_data[data_id].x[i][j] = <double> npy_data[j,i]
         c_data[data_id].w[j] = <double> npy_data[j,3]
@@ -354,6 +356,122 @@ def py_compute_cf(list data_cats,
 
     return results
 
+def gen_box_conf(box_size,
+                data_struct,
+                binning_scheme,
+                pair_count,
+                pair_count_file,
+                cf_estimator,
+                cf_output_file,
+                multipole,
+                multipole_file,
+                projected_cf,
+                projected_file,
+                sep_bin_file,
+                sep_bin_min=0,
+                sep_bin_max=200,
+                sep_bin_size=5,
+                mu_bin_num="",
+                pi_bin_file="",
+                pi_bin_min="",
+                pi_bin_max="",
+                pi_bin_size="",
+                output_format=1,
+                overwrite=1,
+                verbose=1):
+    conf_text=f"""
+    WEIGHT          = 
+    # Weights for pair counts (unset: 1, i.e. no weight).
+    # Column indicator or expression, same dimension as `DATA_CATALOG`.
+    BOX_SIZE        = {box_size}
+        # Side length of the periodic box for the input catalogs.
+        # Double-precision number.
+    ################################################################
+    #  Configurations for the 2-point correlation function (2PCF)  #
+    ################################################################
+    DATA_STRUCT     = {data_struct}
+        # Data structure for evaluating pair counts, integer (unset: 0).
+        # Allowed values are:
+        # * 0: k-d tree;
+        # * 1: ball tree.
+    BINNING_SCHEME  = {binning_scheme}
+        # Binning scheme of the 2PCFs, integer (unset: 0).
+        # Allowed values are:
+        # * 0: isotropic separation bins;
+        # * 1: (s, mu) bins (required by 2PCF multipoles);
+        # * 2: (s_perp, pi) bins (required by projected 2PCFs);
+    PAIR_COUNT      = {pair_count}
+        # Identifiers of pairs to be counted or read, string or string array.
+        # Pairs are labelled by their source catalogs.
+        # E.g., "DD" denotes auto pairs from the catalog 'D',
+        # while "DR" denotes cross pairs from catalogs 'D' and 'R'.
+    PAIR_COUNT_FILE = {pair_count_file}
+        # Name of the files for storing pair counts.
+        # String, same dimension as `PAIR_COUNT`.
+        # If a specified file exists, then the pair counts are read from this file;
+        # otherwise the pair counts are evaluated and saved to the file.
+    CF_ESTIMATOR    = {cf_estimator}
+        # Estimator of the 2PCFs to be evaluated, string or string array.
+        # It must be an expression with pair identifiers.
+        # In particular, "@@" denotes the analytical RR pair counts.
+    CF_OUTPUT_FILE  = {cf_output_file}
+        # Name of the files for saving 2PCFs with the desired binning scheme.
+        # String, same dimension as `CF_ESTIMATOR`.
+    MULTIPOLE       = {multipole}
+        # Orders of Legendre multipoles to be evaluated, integer or integer array.
+    MULTIPOLE_FILE  = {multipole_file}
+        # Name of the files for saving 2PCF multipoles.
+        # String, same dimension as `CF_ESTIMATOR`.
+    PROJECTED_CF    = {projected_cf}
+        # Boolean option, indicate whether computing the projected 2PCFs (unset: F).
+    PROJECTED_FILE  = {projected_file}
+        # Name of the files for saving projected 2PCFs.
+        # String, same dimension as `CF_ESTIMATOR`.
+    #############################
+    #  Definitions of the bins  #
+    #############################
+    SEP_BIN_FILE    = {sep_bin_file}
+        # Filename of the table defining edges of separation (or s_perp) bins.
+        # It mush be a text file with two columns, for the lower and upper limits
+        # of the distance bins, respectively.
+        # Lines starting with '#' are omitted.
+    SEP_BIN_MIN     = {sep_bin_min}
+    SEP_BIN_MAX     = {sep_bin_max}
+    SEP_BIN_SIZE    = {sep_bin_size}
+        # Lower and upper limits, and width of linear separation (or s_perp) bins.
+        # Double-precision numbers. They are only used if `SEP_BIN_FILE` is unset.
+    MU_BIN_NUM      = {mu_bin_num}
+        # Number of linear mu bins in the range [0,1), integer.
+    PI_BIN_FILE     = {pi_bin_file}
+        # Filename of the table defining edges of pi (a.k.a. s_para) bins.
+        # Lines starting with '#' are omitted.
+    PI_BIN_MIN      = {pi_bin_min}
+    PI_BIN_MAX      = {pi_bin_max}
+    PI_BIN_SIZE     = {pi_bin_size}
+        # Lower and upper limits, and width of linear pi bins.
+        # Double-precision numbers. They are only used if `PI_BIN_FILE` is unset.
+    
+    ####################
+    #  Other settings  #
+    ####################
+    OUTPUT_FORMAT   = {output_format}
+        # Format of the output `PAIR_COUNT_FILE`, integer (unset: 0).
+        # Allowed values are:
+        # * 0: FCFC binary format;
+        # * 1: ASCII text format.
+    OVERWRITE       = {overwrite}
+        # Flag indicating whether to overwrite existing files, integer (unset: 0).
+        # Allowed values are:
+        # * 0: quit the program when an output file exist;
+        # * 1: overwrite 2PCF files silently, but keep existing pair count files;
+        # * 2 or larger: overwrite all files silently;
+        # * negative: notify for decisions, and the maximum allowed number of failed
+        #             trials are given by the absolute value of this number.
+    VERBOSE         = {verbose}
+        # Boolean option, indicate whether to show detailed outputs (unset: T).
+    """
+    return conf_text
+    
 
 
     

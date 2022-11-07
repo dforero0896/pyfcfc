@@ -122,5 +122,5 @@ Arguments:
   * `conf`:     the structure for storing configurations.
 ******************************************************************************/
 void conf_destroy(CONF *conf);
-
+void conf_template(void *args);
 #endif
