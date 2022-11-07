@@ -56,7 +56,7 @@ pyfcfc_sky = Extension("pyfcfc.sky",
                   include_dirs=includes + default_includes,
                   library_dirs=['/usr/lib/x86_64-linux-gnu'],
                   language='c',
-                  extra_compile_args=["-DOMP", "-fopenmp"],
+                  extra_compile_args=["-DOMP", "-fopenmp", "-march=native", "-DWITH_SIMD"],
                   extra_link_args=["-fopenmp"]
              )
 

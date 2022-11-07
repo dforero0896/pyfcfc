@@ -253,7 +253,6 @@ static int eval_cf_exp(const CONF *conf, CF *cf) {
       for (size_t j = 0; j < cf->ntot; j++) {
         /* Set pair counts to be passed to libast. */
         for (int k = 0; k < cf->npc; k++) pc[k] = cf->ncnt[k][j];
-        printf("\nncnt %d %lf\n", tid, cf->ncnt[i][j]);
         /* Evaluate the 2PCF. */
         if (ast_eval_num(cf->ast_cf[i], cf->cf[i] + j, pc, cf->npc)) {
           ast_perror(cf->ast_cf[i], stderr,
@@ -264,7 +263,6 @@ static int eval_cf_exp(const CONF *conf, CF *cf) {
           free(pc); return FCFC_ERR_AST;
 #endif
         }
-        printf("\ncf %d %lf\n", tid, cf->cf[i][j]);
       }
 #ifdef OMP
     }

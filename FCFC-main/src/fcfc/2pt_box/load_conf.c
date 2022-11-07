@@ -497,15 +497,6 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
     {'M', "mp-output"   , "MULTIPOLE_FILE" , CFG_ARRAY_STR , &conf->mpout   },
     {'u', "wp"          , "PROJECTED_CF"   , CFG_DTYPE_BOOL, &conf->wp      },
     {'U', "wp-output"   , "PROJECTED_FILE" , CFG_ARRAY_STR , &conf->wpout   },
-    { 0 , "s-file"      , "SEP_BIN_FILE"   , CFG_DTYPE_STR , &conf->fsbin   },
-    { 0 , "s-min"       , "SEP_BIN_MIN"    , CFG_DTYPE_DBL , &conf->smin    },
-    { 0 , "s-max"       , "SEP_BIN_MAX"    , CFG_DTYPE_DBL , &conf->smax    },
-    { 0 , "s-step"      , "SEP_BIN_SIZE"   , CFG_DTYPE_DBL , &conf->ds      },
-    { 0 , "mu-num"      , "MU_BIN_NUM"     , CFG_DTYPE_INT , &conf->nmu     },
-    { 0 , "pi-file"     , "PI_BIN_FILE"    , CFG_DTYPE_STR , &conf->fpbin   },
-    { 0 , "pi-min"      , "PI_BIN_MIN"     , CFG_DTYPE_DBL , &conf->pmin    },
-    { 0 , "pi-max"      , "PI_BIN_MAX"     , CFG_DTYPE_DBL , &conf->pmax    },
-    { 0 , "pi-step"     , "PI_BIN_SIZE"    , CFG_DTYPE_DBL , &conf->dpi     },
     {'F', "out-format"  , "OUTPUT_FORMAT"  , CFG_DTYPE_INT , &conf->ofmt    },
     {'O', "overwrite"   , "OVERWRITE"      , CFG_DTYPE_INT , &conf->ovwrite },
     {'v', "verbose"     , "VERBOSE"        , CFG_DTYPE_BOOL, &conf->verbose }
@@ -861,101 +852,7 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
   }
 
   /* SEP_BIN_FILE */
-  if (cfg_is_set(cfg, &conf->fsbin)) {
-    if ((e = check_input(conf->fsbin, "SEP_BIN_FILE"))) return e;
-  }
-  else {
-    /* SEP_BIN_MIN, SEP_BIN_MAX, SEP_BIN_SIZE */
-    CHECK_EXIST_PARAM(SEP_BIN_MIN, cfg, &conf->smin);
-    CHECK_EXIST_PARAM(SEP_BIN_MAX, cfg, &conf->smax);
-    CHECK_EXIST_PARAM(SEP_BIN_SIZE, cfg, &conf->ds);
-    if (!isfinite(conf->ds) || conf->ds <= 0) {
-      P_ERR(FMT_KEY(SEP_BIN_SIZE) " must be finite and positive\n");
-      return FCFC_ERR_CFG;
-    }
-    if (conf->smin + conf->ds > conf->smax + DOUBLE_TOL) {
-      P_ERR(FMT_KEY(SEP_BIN_MIN) " + " FMT_KEY(SEP_BIN_SIZE)
-          " cannot be larger than " FMT_KEY(SEP_BIN_MAX) "\n");
-      return FCFC_ERR_CFG;
-    }
-    double smax = conf->smin;
-    conf->nsbin = 0;
-    while (smax < conf->smax - DOUBLE_TOL) {
-      smax += conf->ds;
-      if (++conf->nsbin > FCFC_MAX_NSBIN) {
-        P_ERR("too many separations bins given " FMT_KEY(SEP_BIN_MIN) ", "
-            FMT_KEY(SEP_BIN_MAX) ", and " FMT_KEY(SEP_BIN_SIZE) "\n");
-        return FCFC_ERR_CFG;
-      }
-    }
-    if (smax > conf->smax + DOUBLE_TOL) {
-      P_WRN("reduce " FMT_KEY(SEP_BIN_MAX) " to " OFMT_DBL " given "
-          FMT_KEY(SEP_BIN_MIN) " and " FMT_KEY(SEP_BIN_SIZE) "\n", smax);
-    }
-    if (smax >= conf->bsize[0] * 0.5 || smax >= conf->bsize[1] * 0.5 ||
-        smax >= conf->bsize[2] * 0.5) {
-      P_ERR("the maximum separation must be smaller than half the box size\n");
-      return FCFC_ERR_CFG;
-    }
-    conf->smax = smax;
-  }
-
-  if (conf->npole) {
-    /* MU_BIN_NUM */
-    CHECK_EXIST_PARAM(MU_BIN_NUM, cfg, &conf->nmu);
-    if (conf->nmu <= 1) {
-      P_ERR(FMT_KEY(MU_BIN_NUM) " must be larger than 1\n");
-      return FCFC_ERR_CFG;
-    }
-    if (conf->nmu > FCFC_MAX_NMU) {
-      P_ERR(FMT_KEY(MU_BIN_NUM) " cannot be larger than %d\n", FCFC_MAX_NMU);
-      return FCFC_ERR_CFG;
-    }
-  }
-  else if (conf->bintype == FCFC_BIN_ISO) conf->nmu = 1;
-
-  if (conf->bintype == FCFC_BIN_SPI) {
-    /* PI_BIN_FILE */
-    if (cfg_is_set(cfg, &conf->fpbin)) {
-      if ((e = check_input(conf->fpbin, "PI_BIN_FILE"))) return e;
-    }
-    else {
-      /* PI_BIN_MIN, PI_BIN_MAX, PI_BIN_SIZE */
-      CHECK_EXIST_PARAM(PI_BIN_MIN, cfg, &conf->pmin);
-      CHECK_EXIST_PARAM(PI_BIN_MAX, cfg, &conf->pmax);
-      CHECK_EXIST_PARAM(PI_BIN_SIZE, cfg, &conf->dpi);
-      if (!isfinite(conf->dpi) || conf->dpi <= 0) {
-        P_ERR(FMT_KEY(PI_BIN_SIZE) " must be finite and positive\n");
-        return FCFC_ERR_CFG;
-      }
-      if (conf->pmin + conf->dpi > conf->pmax + DOUBLE_TOL) {
-        P_ERR(FMT_KEY(PI_BIN_MIN) " + " FMT_KEY(PI_BIN_SIZE)
-            " cannot be larger than " FMT_KEY(PI_BIN_MAX) "\n");
-        return FCFC_ERR_CFG;
-      }
-      double pmax = conf->pmin;
-      conf->npbin = 0;
-      while (pmax < conf->pmax - DOUBLE_TOL) {
-        pmax += conf->dpi;
-        if (++conf->npbin > FCFC_MAX_NSBIN) {
-          P_ERR("too many pi bins given " FMT_KEY(PI_BIN_NUM) ", "
-              FMT_KEY(PI_BIN_MAX) ", and " FMT_KEY(PI_BIN_SIZE) "\n");
-          return FCFC_ERR_CFG;
-        }
-      }
-      if (pmax > conf->pmax + DOUBLE_TOL) {
-        P_WRN("reduce " FMT_KEY(PI_BIN_MAX) " to " OFMT_DBL " given "
-            FMT_KEY(PI_BIN_MIN) " and " FMT_KEY(PI_BIN_SIZE) "\n", pmax);
-      }
-    if (pmax >= conf->bsize[0] * 0.5 || pmax >= conf->bsize[1] * 0.5 ||
-        pmax >= conf->bsize[2] * 0.5) {
-      P_ERR("the maximum pi must be smaller than half the box size\n");
-      return FCFC_ERR_CFG;
-    }
-      conf->pmax = pmax;
-    }
-  }
-
+  
   /* OUTPUT_FORMAT */
   if (!cfg_is_set(cfg, &conf->ofmt)) conf->ofmt = DEFAULT_OUTPUT_FORMAT;
   switch (conf->ofmt) {
@@ -1117,26 +1014,7 @@ static void conf_print(const CONF *conf
   }
 
   /* Bin definitions. */
-  if (conf->fsbin) printf("\n  SEP_BIN_FILE    = %s", conf->fsbin);
-  else {
-    printf("\n  SEP_BIN_MIN     = " OFMT_DBL, conf->smin);
-    printf("\n  SEP_BIN_MAX     = " OFMT_DBL, conf->smax);
-    printf("\n  SEP_BIN_SIZE    = " OFMT_DBL " (%d bins)",
-        conf->ds, conf->nsbin);
-  }
-  if (conf->bintype == FCFC_BIN_SMU)
-    printf("\n  MU_BIN_NUM      = %d", conf->nmu);
-
-  if (conf->bintype == FCFC_BIN_SPI) {
-    if (conf->fpbin) printf("\n  PI_BIN_FILE     = %s", conf->fpbin);
-    else {
-      printf("\n  PI_BIN_MIN      = " OFMT_DBL, conf->pmin);
-      printf("\n  PI_BIN_MAX      = " OFMT_DBL, conf->pmax);
-      printf("\n  PI_BIN_SIZE     = " OFMT_DBL " (%d bins)",
-          conf->dpi, conf->npbin);
-    }
-  }
-
+  
   /* Others. */
   const char *sname[] = {"binary", "ASCII"};
   const int nsname = sizeof(sname) / sizeof(sname[0]);
@@ -1229,7 +1107,5 @@ void conf_destroy(CONF *conf) {
   FREE_ARRAY(conf->poles);
   FREE_STR_ARRAY(conf->mpout);
   FREE_STR_ARRAY(conf->wpout);
-  FREE_ARRAY(conf->fsbin);
-  FREE_ARRAY(conf->fpbin);
   free(conf);
 }
