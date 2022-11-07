@@ -248,7 +248,7 @@ static void version(void *args) {
 Function `conf_template`:
   Print a template configuration file.
 ******************************************************************************/
-static void conf_template(void *args) {
+void conf_template(void *args) {
   (void) args;
   printf("# Configuration file for " FCFC_CODE_NAME " (default: `"
 DEFAULT_CONF_FILE "').\n\
