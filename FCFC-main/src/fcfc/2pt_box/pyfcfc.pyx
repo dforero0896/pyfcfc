@@ -157,19 +157,20 @@ cdef extern from "fcfc.h":
 
 
 cdef void npy_to_data(DATA* c_data, 
-                        double[:,:] npy_data,
+                        double[:,:] npy_pos,
+                        double[:] npy_wt,
                         size_t data_id) nogil:
 
     cdef size_t i, j
-    c_data[data_id].n = <size_t> npy_data.shape[0]
+    c_data[data_id].n = <size_t> npy_wt.shape[0]
     for i in range(3):
         c_data[data_id].x[i] = <double *> malloc(c_data[data_id].n * sizeof(real))
     c_data[data_id].w = <double *> malloc(c_data[data_id].n * sizeof(double))
 
     for j in prange(c_data[data_id].n, nogil=True):
         for i in range(3):
-            c_data[data_id].x[i][j] = <double> npy_data[j,i]
-        c_data[data_id].w[j] = <double> npy_data[j,3]
+            c_data[data_id].x[i][j] = <real> npy_pos[j,i]
+        c_data[data_id].w[j] = <real> npy_wt[j]
 
 
 cdef dict retrieve_paircounts(CF* cf):
@@ -296,9 +297,10 @@ cdef double[:,:] retrieve_projected(CF* cf):
     return results
 
 def py_compute_cf(list data_cats,
-                fcfc_conf_file,
+                  list data_wts,
+                  fcfc_conf_file,
                 ) :
-
+    assert len(data_cats) == len(data_wts)
     cdef size_t i,j
     cdef CF* cf = cf_init()
     cdef size_t n_catalogs = len(data_cats)
@@ -306,7 +308,7 @@ def py_compute_cf(list data_cats,
     cdef DATA* dat = <DATA*> calloc(<unsigned int> n_catalogs, sizeof(DATA))
     for i in range(n_catalogs):
         data_init(dat + i)
-        npy_to_data(dat, data_cats[i], i)
+        npy_to_data(dat, data_cats[i], data_wts[i], i)
     
 
     # Define name of the configuration file to use

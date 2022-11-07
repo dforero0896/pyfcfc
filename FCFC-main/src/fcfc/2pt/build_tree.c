@@ -287,7 +287,7 @@ void *tree_create(const CONF *conf, CF *cf, const int idx
       for (size_t i = 0; i < data->n; i++) data->w[i] = 1;
       data->wt = (double) data->n;
     }
-
+  
     /* Construct the tree. */
     switch (cf->treetype) {
       case FCFC_STRUCT_KDTREE:
@@ -310,7 +310,7 @@ void *tree_create(const CONF *conf, CF *cf, const int idx
     }
 #ifdef MPI
   }
-
+  
   /* Broadcast the data catalog and tree. */
   switch (cf->treetype) {
     case FCFC_STRUCT_KDTREE:
