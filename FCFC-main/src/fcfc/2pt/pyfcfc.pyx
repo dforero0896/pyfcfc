@@ -158,7 +158,7 @@ cdef extern from *:
     void data_init(DATA* data) nogil
 cdef extern from "fcfc.h":
 
-    CF* compute_cf(int argc, char *argv[], DATA* dat) nogil
+    CF* compute_cf(int argc, char *argv[], DATA* dat, real* sbins, int ns, real* pbins, int np, int nmu) nogil
 
 
 cdef void npy_to_data(DATA* c_data, 
@@ -300,7 +300,10 @@ cdef double[:,:] retrieve_projected(CF* cf):
     return results
 
 def py_compute_cf(list data_cats,
-                fcfc_conf_file,
+                real[:] sedges,
+                real[:] pedges,
+                int nmu,
+                str fcfc_conf_file,
                 ) :
 
     cdef size_t i,j
@@ -331,11 +334,21 @@ def py_compute_cf(list data_cats,
     argv[0] = arg0_str
     argv[1] = conf_string
 
-    print(n_catalogs)
-    cf = compute_cf(argc, argv, dat)
-    if cf is NULL: raise ValueError("Could not compute correlations.")
-    cdef int idx = 0
+    cdef real* sedges_ptr = &sedges[0]
+    cdef int ns = len(sedges) - 1
 
+    cdef real* pedges_ptr = NULL
+    cdef int npi = 0
+
+    if pedges is not None:
+        pedges_ptr = &pedges[0]
+        npi = len(pedges) - 1
+    
+    
+    
+    cf = compute_cf(argc, argv, dat, sedges_ptr, ns, pedges_ptr, npi, nmu)
+    if cf is NULL: raise ValueError("Could not compute correlations.")
+    
     results = {}
     results['number'] = [cf.data[i].n for i in range(cf.ncat)]
     results['weighted_number'] = [cf.data[i].wt for i in range(cf.ncat)]

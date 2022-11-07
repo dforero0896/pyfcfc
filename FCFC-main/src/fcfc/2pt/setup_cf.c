@@ -544,7 +544,7 @@ Arguments:
 Return:
   Address of the structure for correlation function evaluations.
 ******************************************************************************/
-CF *cf_setup(const CONF *conf
+CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int np, int nmu
 #ifdef OMP
     , const PARA *para
 #endif
@@ -565,10 +565,11 @@ CF *cf_setup(const CONF *conf
 #else
   cf->nthread = 1;
 #endif
+  cf->data = data; 
   cf->bintype = conf->bintype;
-  cf->ns = conf->nsbin;
-  cf->np = conf->npbin;
-  cf->nmu = conf->nmu;
+  cf->ns = ns;
+  cf->np = np;
+  cf->nmu = nmu > 1 ? nmu : 1;
   cf->treetype = conf->dstruct;
 
   cf->ncat = conf->ninput;
@@ -599,20 +600,18 @@ CF *cf_setup(const CONF *conf
   }
 
   /* Define separation bins. */
-  if (conf->fsbin) {    /* read separation bins from file */
-    if (read_bins(conf->fsbin, &cf->ns, &cf->sbin)) {
-      cf_destroy(cf); return NULL;
-    }
-    if (conf->verbose) printf("  %d separation bins loaded from file `%s'\n",
-        cf->ns, conf->fsbin);
+  if (sbins != NULL){
+    cf->sbin = sbins;
+    cf->ns = ns;
   }
-  else {                /* linear bins from configurations */
-    if (!(cf->sbin = malloc(sizeof(real) * (cf->ns + 1)))) {
-      P_ERR("failed to allocate memory for separation bins\n");
-      cf_destroy(cf); return NULL;
-    }
-    for (int i = 0; i <= cf->ns; i++) cf->sbin[i] = conf->smin + conf->ds * i;
+  else {
+    P_ERR("Separation bins unset\n");
+    cf_destroy(cf); return NULL;
   }
+  
+  if (conf->verbose) printf("  %d separation bins loaded `%s'\n",
+      cf->ns);
+  
   /* Allocate memory for unrescaled and squared bin edges. */
   if (!(cf->sbin_raw = malloc(sizeof(real) * (cf->ns + 1))) ||
       !(cf->s2bin = malloc(sizeof(real) * (cf->ns + 1)))) {
@@ -623,20 +622,15 @@ CF *cf_setup(const CONF *conf
 
   /* Define pi bins */
   if (cf->bintype == FCFC_BIN_SPI) {
-    if (conf->fpbin) {  /* read pi bins from file */
-      if (read_bins(conf->fpbin, &cf->np, &cf->pbin)) {
-        cf_destroy(cf); return NULL;
-      }
-      if (conf->verbose) printf("  %d pi bins loaded from file `%s'\n",
-          cf->np, conf->fpbin);
+    if (pbins != NULL) {  /* read pi bins from file */
+      cf->pbin = pbins;
+      cf->np = np;
+      if (conf->verbose) printf("  %d pi bins loaded\n",
+          cf->np);
     }
-    else {              /* linear bins from configurations */
-      if (!(cf->pbin = malloc(sizeof(real) * (cf->np + 1)))) {
-        P_ERR("failed to allocate memory for pi bins\n");
-        cf_destroy(cf); return NULL;
-      }
-      for (int i = 0; i <= cf->np; i++)
-        cf->pbin[i] = conf->pmin + conf->dpi * i;
+    else {
+      P_ERR("Pi bins required\n");
+      cf_destroy(cf); return NULL;
     }
     /* Allocate memory for unrescaled and squared pi bin edges. */
     if (!(cf->pbin_raw = malloc(sizeof(real) * (cf->np + 1))) ||
@@ -704,13 +698,6 @@ CF *cf_setup(const CONF *conf
     if (!found)
       P_WRN("catalog <%c> is not required for pair counting\n", cf->label[i]);
   }
-
-  /* Allocate memory for the catalogues, pair counts, and 2PCFs. */
-  //if (!(cf->data = calloc((unsigned int) cf->ncat, sizeof(DATA)))) {
-  //  P_ERR("failed to allocate memory for the input catalogs\n");
-  //  cf_destroy(cf); return NULL;
-  //}
-  //for (int i = 0; i < cf->ncat; i++) data_init(cf->data + i);
 
   if (!(cf->wt = malloc(sizeof(bool) * cf->npc)) ||
       !(cf->cat_wt = calloc(cf->ncat, sizeof(bool)))) {
@@ -1009,8 +996,6 @@ void cf_destroy(CF *cf) {
     }
     free(cf->data);
   }
-  if (cf->sbin) free(cf->sbin);
-  if (cf->pbin) free(cf->pbin);
   if (cf->sbin_raw) free(cf->sbin_raw);
   if (cf->pbin_raw) free(cf->pbin_raw);
   if (cf->pc_idx[0]) free(cf->pc_idx[0]);

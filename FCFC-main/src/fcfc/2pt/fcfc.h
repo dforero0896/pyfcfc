@@ -8,6 +8,7 @@
 #endif
 
 
-CF* compute_cf(int argc, char *argv[], DATA* dat);
+//CF* compute_cf(int argc, char *argv[], DATA* dat);
+CF* compute_cf(int argc, char *argv[], DATA* dat, real* sbins, int ns, real* pbins, int np, int nmu);
 
 #endif

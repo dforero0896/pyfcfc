@@ -519,15 +519,8 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
   /* Configuration parameters. */
   const cfg_param_t params[] = {
     {'c', "conf"        , "CONFIG_FILE"    , CFG_DTYPE_STR , &conf->fconf   },
-    {'i', "input"       , "CATALOG"        , CFG_ARRAY_STR , &conf->input   },
     {'l', "label"       , "CATALOG_LABEL"  , CFG_ARRAY_CHAR, &conf->label   },
-    {'T', "type"        , "CATALOG_TYPE"   , CFG_ARRAY_INT , &conf->ftype   },
-    { 0 , "skip"        , "ASCII_SKIP"     , CFG_ARRAY_LONG, &conf->skip    },
-    { 0 , "comment"     , "ASCII_COMMENT"  , CFG_ARRAY_CHAR, &conf->comment },
-    {'f', "formatter"   , "ASCII_FORMATTER", CFG_ARRAY_STR , &conf->fmtr    },
-    {'x', "position"    , "POSITION"       , CFG_ARRAY_STR , &conf->pos     },
     {'w', "weight"      , "WEIGHT"         , CFG_ARRAY_STR , &conf->wt      },
-    {'s', "select"      , "SELECTION"      , CFG_ARRAY_STR , &conf->sel     },
     { 0 , "convert"     , "COORD_CONVERT"  , CFG_ARRAY_BOOL, &conf->cnvt    },
     {'d', "omega-m"     , "OMEGA_M"        , CFG_DTYPE_DBL , &conf->omega_m },
     { 0 , "omega-l"     , "OMEGA_LAMBDA"   , CFG_DTYPE_DBL , &conf->omega_l },
@@ -746,16 +739,6 @@ Return:
 static int conf_verify(const cfg_t *cfg, CONF *conf) {
   int e, num;
 
-  /* CATALOG */
-//  CHECK_EXIST_ARRAY(CATALOG, cfg, &conf->input, conf->ninput);
-//  if (conf->ninput > 26) {
-//    P_ERR("there can be at most 26 catalogs set via " FMT_KEY(CATALOG) "\n");
-//    return FCFC_ERR_CFG;
-//  }
-//  for (int i = 0; i < conf->ninput; i++) {
-//    if ((e = check_input(conf->input[i], "CATALOG"))) return e;
-//  }
-
   /* CATALOG_LABEL */
   num = cfg_get_size(cfg, &conf->label);
   conf->ninput = cfg_get_size(cfg, &conf->label);
@@ -787,77 +770,7 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     }
   }
 
-//  /* CATALOG_TYPE */
-//  if ((num = cfg_get_size(cfg, &conf->ftype))) {
-//    CHECK_ARRAY_LENGTH(CATALOG_TYPE, cfg, conf->ftype, "%d", num, conf->ninput);
-//  }
-//  conf->ascii = false;
-//  for (int i = 0; i < conf->ninput; i++) {
-//    int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//    switch (type) {
-//      case FCFC_FFMT_ASCII:
-//        conf->ascii = true;
-//        break;
-//      case FCFC_FFMT_FITS:
-//#ifdef WITH_CFITSIO
-//        break;
-//#else
-//        P_ERR("FITS format is not enabled\n"
-//            "Please re-compile the code with option -DWITH_CFITSIO\n");
-//        return FCFC_ERR_CFG;
-//#endif
-//      case FCFC_FFMT_HDF5:
-//#ifdef WITH_HDF5
-//        break;
-//#else
-//        P_ERR("HDF5 format is not enabled\n"
-//            "Please re-compile the code with opetion -DWITH_HDF5\n");
-//        return FCFC_ERR_CFG;
-//#endif
-//      default:
-//        P_ERR("invalid " FMT_KEY(CATALOG_TYPE) ": %d\n", type);
-//        return FCFC_ERR_CFG;
-//    }
-//  }
-//
-//  /* Check format settings for ASCII catalogues. */
-//  if (conf->ascii) {
-//    /* ASCII_SKIP */
-//    if ((num = cfg_get_size(cfg, &conf->skip))) {
-//      CHECK_ARRAY_LENGTH(ASCII_SKIP, cfg, conf->skip, "%ld", num, conf->ninput);
-//      for (int i = 0; i < conf->ninput; i++) {
-//        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type == FCFC_FFMT_ASCII && conf->skip[i] < 0) {
-//          P_ERR(FMT_KEY(ASCII_SKIP) " cannot be negative\n");
-//          return FCFC_ERR_CFG;
-//        }
-//      }
-//    }
-//
-//    /* ASCII_COMMENT */
-//    if ((num = cfg_get_size(cfg, &conf->comment))) {
-//      CHECK_ARRAY_LENGTH(ASCII_COMMENT, cfg, conf->comment, "%c",
-//          num, conf->ninput);
-//      for (int i = 0; i < conf->ninput; i++) {
-//        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type == FCFC_FFMT_ASCII) {
-//          if (conf->comment[i] && !isgraph(conf->comment[i])) {
-//            P_ERR("invalid " FMT_KEY(ASCII_COMMENT) ": '%c' (ASCII code: %d)\n",
-//                conf->comment[i], conf->comment[i]);
-//            return FCFC_ERR_CFG;
-//          }
-//        }
-//      }
-//    }
-//
-//    /* ASCII_FORMATTER */
-//    CHECK_EXIST_ARRAY(ASCII_FORMATTER, cfg, &conf->fmtr, num);
-//    CHECK_STR_ARRAY_LENGTH(ASCII_FORMATTER, cfg, conf->fmtr, num, conf->ninput);
-//  }
-//
-//  /* POSITION */
-//  CHECK_EXIST_ARRAY(POSITION, cfg, &conf->pos, num);
-//  CHECK_STR_ARRAY_LENGTH(POSITION, cfg, conf->pos, num, conf->ninput * 3);
+
 
   /* WEIGHT */
   if (!(conf->has_wt = malloc(conf->ninput * sizeof(bool)))) {
@@ -866,25 +779,6 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
   }
   // We will manage weighting defaults from p/cython 
   for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = true;
-//  if ((num = cfg_get_size(cfg, &conf->wt))) {
-//    CHECK_STR_ARRAY_LENGTH(WEIGHT, cfg, conf->wt, num, conf->ninput);
-//    for (int i = 0; i < conf->ninput; i++) {
-//      /* Disable weighting if the weight is 1 or empty. */
-//      if ((conf->wt[i][0] == '1' && conf->wt[i][1] == '\0') ||
-//          (((conf->wt[i][0] == '\'' && conf->wt[i][1] == '\'') ||
-//          (conf->wt[i][0] == '"' && conf->wt[i][1] == '"')) &&
-//          conf->wt[i][2] == '\0')) conf->has_wt[i] = false;
-//      else conf->has_wt[i] = true;
-//    }
-//  }
-//  else {
-//    for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = false;
-//  }
-//
-//  /* SELECTION */
-//  if ((num = cfg_get_size(cfg, &conf->sel))) {
-//    CHECK_STR_ARRAY_LENGTH(SELECTION, cfg, conf->sel, num, conf->ninput);
-//  }
 
   /* COORD_CONVERT */
   if ((num = cfg_get_size(cfg, &conf->cnvt))) {
@@ -1205,79 +1099,10 @@ static void conf_print(const CONF *conf
   /* Configuration file */
   printf("\n  CONFIG_FILE     = %s", conf->fconf);
   /* Input catalogs. */
-//  printf("\n  CATALOG         = %s", conf->input[0]);
-//  for (int i = 1; i < conf->ninput; i++)
-//    printf("\n                    %s", conf->input[i]);
 
   printf("\n  CATALOG_LABEL   = '%c'", conf->label[0]);
   for (int i = 1; i < conf->ninput; i++) printf(" , '%c'", conf->label[i]);
 
-//  const char *ftype[] = {"ASCII", "FITS", "HDF5"};
-//  const int ntype = sizeof(ftype) / sizeof(ftype[0]);
-//  if (!conf->ftype) {
-//    printf("\n  CATALOG_TYPE    = %d (%s)",
-//        DEFAULT_FILE_TYPE,
-//        DEFAULT_FILE_TYPE < ntype ? ftype[DEFAULT_FILE_TYPE] : "unknown");
-//  }
-//  else {
-//    printf("\n  CATALOG_TYPE    = %d (%s)",
-//        conf->ftype[0],
-//        conf->ftype[0] < ntype ? ftype[conf->ftype[0]] : "unknown");
-//    for (int i = 1; i < conf->ninput; i++) {
-//      printf("\n                    %d (%s)",
-//          conf->ftype[i],
-//          conf->ftype[i] < ntype ? ftype[conf->ftype[i]] : "unknown");
-//    }
-//  }
-
-//  if (conf->ascii) {
-//    if (!conf->skip) {
-//      printf("\n  ASCII_SKIP      = %ld", (long) DEFAULT_ASCII_SKIP);
-//    }
-//    else {
-//      printf("\n  ASCII_SKIP      = %ld", conf->skip[0]);
-//      for (int i = 1; i < conf->ninput; i++) printf(" , %ld", conf->skip[i]);
-//    }
-//
-//    if (!conf->comment) {
-//      if (DEFAULT_ASCII_COMMENT == 0) printf("\n  ASCII_COMMENT   = ''");
-//      else printf("\n  ASCII_COMMENT   = '%c'", DEFAULT_ASCII_COMMENT);
-//    }
-//    else {
-//      int type = conf->ftype ? conf->ftype[0] : DEFAULT_FILE_TYPE;
-//      if (type != FCFC_FFMT_ASCII || conf->comment[0] == 0)
-//        printf("\n  ASCII_COMMENT   = ''");
-//      else printf("\n  ASCII_COMMENT   = '%c'", conf->comment[0]);
-//      for (int i = 1; i < conf->ninput; i++) {
-//        type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type != FCFC_FFMT_ASCII || conf->comment[i] == 0) printf(" , ''");
-//        else printf(" , '%c'", conf->comment[i]);
-//      }
-//    }
-//
-//    printf("\n  ASCII_FORMATTER = %s", conf->fmtr[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->fmtr[i]);
-//  }
-
-  //printf("\n  POSITION        = %s , %s , %s",
-  //    conf->pos[0], conf->pos[1], conf->pos[2]);
-  //for (int i = 1; i < conf->ninput; i++) {
-  //  printf("\n                    %s , %s , %s",
-  //      conf->pos[i * 3], conf->pos[i * 3 + 1], conf->pos[i * 3 + 2]);
-  //}
-
-//  if (conf->wt) {
-//    printf("\n  WEIGHT          = %s", conf->wt[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->wt[i]);
-//  }
-
-//  if (conf->sel) {
-//    printf("\n  SELECTION       = %s", conf->sel[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->sel[i]);
-//  }
 
   if (conf->cnvt) {
     printf("\n  COORD_CONVERT   = %c", conf->cnvt[0] ? 'T' : 'F');
@@ -1444,15 +1269,8 @@ Arguments:
 ******************************************************************************/
 void conf_destroy(CONF *conf) {
   if (!conf) return;
-  FREE_STR_ARRAY(conf->input);
   FREE_ARRAY(conf->label);
-  FREE_ARRAY(conf->ftype);
-  FREE_ARRAY(conf->skip);
-  FREE_ARRAY(conf->comment);
-  FREE_STR_ARRAY(conf->fmtr);
-  FREE_STR_ARRAY(conf->pos);
   FREE_STR_ARRAY(conf->wt);
-  FREE_STR_ARRAY(conf->sel);
   FREE_ARRAY(conf->has_wt);
   FREE_ARRAY(conf->cnvt);
   FREE_ARRAY(conf->fcnvt);

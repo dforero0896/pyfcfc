@@ -484,15 +484,8 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
   /* Configuration parameters. */
   const cfg_param_t params[] = {
     {'c', "conf"        , "CONFIG_FILE"    , CFG_DTYPE_STR , &conf->fconf   },
-    {'i', "input"       , "CATALOG"        , CFG_ARRAY_STR , &conf->input   },
     {'l', "label"       , "CATALOG_LABEL"  , CFG_ARRAY_CHAR, &conf->label   },
-    {'T', "type"        , "CATALOG_TYPE"   , CFG_ARRAY_INT , &conf->ftype   },
-    { 0 , "skip"        , "ASCII_SKIP"     , CFG_ARRAY_LONG, &conf->skip    },
-    { 0 , "comment"     , "ASCII_COMMENT"  , CFG_ARRAY_CHAR, &conf->comment },
-    {'f', "formatter"   , "ASCII_FORMATTER", CFG_ARRAY_STR , &conf->fmtr    },
-    {'x', "position"    , "POSITION"       , CFG_ARRAY_STR , &conf->pos     },
     {'w', "weight"      , "WEIGHT"         , CFG_ARRAY_STR , &conf->wt      },
-    {'s', "select"      , "SELECTION"      , CFG_ARRAY_STR , &conf->sel     },
     {'b', "box"         , "BOX_SIZE"       , CFG_ARRAY_DBL , &conf->bsize   },
     {'S', "data-struct" , "DATA_STRUCT"    , CFG_DTYPE_INT , &conf->dstruct },
     {'B', "bin"         , "BINNING_SCHEME" , CFG_DTYPE_INT , &conf->bintype },
@@ -660,16 +653,6 @@ Return:
 static int conf_verify(const cfg_t *cfg, CONF *conf) {
   int e, num;
   
-  /* CATALOG */
-//  CHECK_EXIST_ARRAY(CATALOG, cfg, &conf->input, conf->ninput);
-//  if (conf->ninput > 26) {
-//    P_ERR("there can be at most 26 catalogs set via " FMT_KEY(CATALOG) "\n");
-//    return FCFC_ERR_CFG;
-//  }
-//  for (int i = 0; i < conf->ninput; i++) {
-//    if ((e = check_input(conf->input[i], "CATALOG"))) return e;
-//  }
-//
   /* CATALOG_LABEL */
   num = cfg_get_size(cfg, &conf->label);
   conf->ninput = cfg_get_size(cfg, &conf->label);
@@ -702,78 +685,6 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     }
   }
 
-//  /* CATALOG_TYPE */
-//  if ((num = cfg_get_size(cfg, &conf->ftype))) {
-//    CHECK_ARRAY_LENGTH(CATALOG_TYPE, cfg, conf->ftype, "%d", num, conf->ninput);
-//  }
-//  conf->ascii = false;
-//  for (int i = 0; i < conf->ninput; i++) {
-//    int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//    switch (type) {
-//      case FCFC_FFMT_ASCII:
-//        conf->ascii = true;
-//        break;
-//      case FCFC_FFMT_FITS:
-//#ifdef WITH_CFITSIO
-//        break;
-//#else
-//        P_ERR("FITS format is not enabled\n"
-//            "Please re-compile the code with option -DWITH_CFITSIO\n");
-//        return FCFC_ERR_CFG;
-//#endif
-//      case FCFC_FFMT_HDF5:
-//#ifdef WITH_HDF5
-//        break;
-//#else
-//        P_ERR("HDF5 format is not enabled\n"
-//            "Please re-compile the code with opetion -DWITH_HDF5\n");
-//        return FCFC_ERR_CFG;
-//#endif
-//      default:
-//        P_ERR("invalid " FMT_KEY(CATALOG_TYPE) ": %d\n", type);
-//        return FCFC_ERR_CFG;
-//    }
-//  }
-//
-//  /* Check format settings for ASCII catalogues. */
-//  if (conf->ascii) {
-//    /* ASCII_SKIP */
-//    if ((num = cfg_get_size(cfg, &conf->skip))) {
-//      CHECK_ARRAY_LENGTH(ASCII_SKIP, cfg, conf->skip, "%ld", num, conf->ninput);
-//      for (int i = 0; i < conf->ninput; i++) {
-//        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type == FCFC_FFMT_ASCII && conf->skip[i] < 0) {
-//          P_ERR(FMT_KEY(ASCII_SKIP) " cannot be negative\n");
-//          return FCFC_ERR_CFG;
-//        }
-//      }
-//    }
-
- //   /* ASCII_COMMENT */
- //   if ((num = cfg_get_size(cfg, &conf->comment))) {
- //     CHECK_ARRAY_LENGTH(ASCII_COMMENT, cfg, conf->comment, "%c",
- //         num, conf->ninput);
- //     for (int i = 0; i < conf->ninput; i++) {
- //       int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
- //       if (type == FCFC_FFMT_ASCII) {
- //         if (conf->comment[i] && !isgraph(conf->comment[i])) {
- //           P_ERR("invalid " FMT_KEY(ASCII_COMMENT) ": '%c' (ASCII code: %d)\n",
- //               conf->comment[i], conf->comment[i]);
- //           return FCFC_ERR_CFG;
- //         }
- //       }
- //     }
- //   }
-//
- //   /* ASCII_FORMATTER */
- //   CHECK_EXIST_ARRAY(ASCII_FORMATTER, cfg, &conf->fmtr, num);
- //   CHECK_STR_ARRAY_LENGTH(ASCII_FORMATTER, cfg, conf->fmtr, num, conf->ninput);
- // }
-//
- // /* POSITION */
- // CHECK_EXIST_ARRAY(POSITION, cfg, &conf->pos, num);
- // CHECK_STR_ARRAY_LENGTH(POSITION, cfg, conf->pos, num, conf->ninput * 3);
-//
   /* WEIGHT */
   if (!(conf->has_wt = malloc(conf->ninput * sizeof(bool)))) {
     P_ERR("failed to allocate memory for " FMT_KEY(WEIGHT) "\n");
@@ -781,25 +692,6 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
   }
   // We will manage weighting defaults from p/cython 
   for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = true;
-//  if ((num = cfg_get_size(cfg, &conf->wt))) {
-//    CHECK_STR_ARRAY_LENGTH(WEIGHT, cfg, conf->wt, num, conf->ninput);
-//    for (int i = 0; i < conf->ninput; i++) {
-//      /* Disable weighting if the weight is 1 or empty. */
-//      if ((conf->wt[i][0] == '1' && conf->wt[i][1] == '\0') ||
-//          (((conf->wt[i][0] == '\'' && conf->wt[i][1] == '\'') ||
-//          (conf->wt[i][0] == '"' && conf->wt[i][1] == '"')) &&
-//          conf->wt[i][2] == '\0')) conf->has_wt[i] = false;
-//      else conf->has_wt[i] = true;
-//    }
-//  }
-//  else {
-//    for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = false;
-//  }
-//
-//  /* SELECTION */
-//  if ((num = cfg_get_size(cfg, &conf->sel))) {
-//    CHECK_STR_ARRAY_LENGTH(SELECTION, cfg, conf->sel, num, conf->ninput);
-//  }
 
   /* BOX_SIZE */
   CHECK_EXIST_ARRAY(BOX_SIZE, cfg, &conf->bsize, num);
@@ -1325,16 +1217,9 @@ Arguments:
 ******************************************************************************/
 void conf_destroy(CONF *conf) {
   if (!conf) return;
-  FREE_STR_ARRAY(conf->input);
   FREE_ARRAY(conf->label);
-  FREE_ARRAY(conf->ftype);
-  FREE_ARRAY(conf->skip);
-  FREE_ARRAY(conf->comment);
-  FREE_STR_ARRAY(conf->fmtr);
-  FREE_STR_ARRAY(conf->pos);
   FREE_STR_ARRAY(conf->wt);
   FREE_ARRAY(conf->has_wt);
-  FREE_STR_ARRAY(conf->sel);
   FREE_ARRAY(conf->bsize);
   FREE_STR_ARRAY(conf->pc);
   FREE_ARRAY(conf->comp_pc);
