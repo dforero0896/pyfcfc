@@ -1056,9 +1056,11 @@ static void conf_print(const CONF *conf
   /* Others. */
   const char *sname[] = {"binary", "ASCII"};
   const int nsname = sizeof(sname) / sizeof(sname[0]);
-  printf("\n  OUTPUT_FORMAT   = %d (%s)", conf->ofmt,
-      conf->ofmt < nsname ? sname[conf->ofmt] : "unknown");
-  printf("\n  OVERWRITE       = %d", conf->ovwrite);
+  if (conf->wpout || conf->cfout || conf->pcout || conf->mpout){  
+    printf("\n  OUTPUT_FORMAT   = %d (%s)", conf->ofmt,
+        conf->ofmt < nsname ? sname[conf->ofmt] : "unknown");
+    printf("\n  OVERWRITE       = %d", conf->ovwrite);
+  }
 
 #ifdef MPI
   printf("\n  MPI_NUM_TASKS   = %d", para->ntask);

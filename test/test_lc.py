@@ -33,7 +33,7 @@ for j in range(results['multipoles'].shape[0]):
         ax[i].format(xlabel = "$s$ [Mpc/$h$]", ylabel = r"$s^2\xi$", title=f"$\ell = {2*i}$", titleloc="ur")
 fig.savefig("test/test_lc.png", dpi=300)
 
-results = py_compute_cf([data, rand], [wdat, wran], np.arange(0, 170, 1, dtype=np.double), np.arange(0, 200, 1, dtype=np.double), 0, "test/fcfc_lc_wp.conf")
+results = py_compute_cf([data, rand], [wdat, wran], np.logspace(-2, 2.3, 100), np.arange(0, 200, 1, dtype=np.double), 0, "test/fcfc_lc_wp.conf")
 for j in range(results['projected'].shape[0]):
     ax[3].plot(results['s'], results['s'] * results['projected'][j,:])
     ax[3].format(xlabel = "$s$ [Mpc/$h$]", ylabel = r"$sw_p$")
