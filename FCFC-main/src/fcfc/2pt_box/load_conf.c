@@ -758,26 +758,47 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
   }
 
   /* PAIR_COUNT_FILE */
-  CHECK_EXIST_ARRAY(PAIR_COUNT_FILE, cfg, &conf->pcout, num);
-  CHECK_STR_ARRAY_LENGTH(PAIR_COUNT_FILE, cfg, conf->pcout, num, conf->npc);
-  for (int i = 0; i < conf->npc; i++) {
-    e = check_output(conf->pcout[i], "PAIR_COUNT_FILE", conf->ovwrite,
-        FCFC_OVERWRITE_ALL);
-    if (!e) conf->comp_pc[i] = true;
-    else if (e == FCFC_ERR_SAVE) conf->comp_pc[i] = false;
-    else return e;
+  if (cfg_is_set(cfg, &conf->pcout)){
+    CHECK_EXIST_ARRAY(PAIR_COUNT_FILE, cfg, &conf->pcout, num);
+    CHECK_STR_ARRAY_LENGTH(PAIR_COUNT_FILE, cfg, conf->pcout, num, conf->npc);
+    for (int i = 0; i < conf->npc; i++) {
+      e = check_output(conf->pcout[i], "PAIR_COUNT_FILE", conf->ovwrite,
+          FCFC_OVERWRITE_ALL);
+      if (!e) conf->comp_pc[i] = true;
+      else if (e == FCFC_ERR_SAVE) conf->comp_pc[i] = false;
+      else return e;
 
-    /* Check if the labels exist if evaluating pair counts. */
-    if (conf->comp_pc[i]) {
-      int label_found = 0;
-      for (int j = 0; j < conf->ninput; j++) {
-        if (conf->pc[i][0] == conf->label[j]) label_found += 1;
-        if (conf->pc[i][1] == conf->label[j]) label_found += 1;
+      /* Check if the labels exist if evaluating pair counts. */
+      if (conf->comp_pc[i]) {
+        int label_found = 0;
+        for (int j = 0; j < conf->ninput; j++) {
+          if (conf->pc[i][0] == conf->label[j]) label_found += 1;
+          if (conf->pc[i][1] == conf->label[j]) label_found += 1;
+        }
+        if (label_found != 2) {
+          P_ERR("catalog label not found for " FMT_KEY(PAIR_COUNT) ": %s\n",
+              conf->pc[i]);
+          return FCFC_ERR_CFG;
+        }
       }
-      if (label_found != 2) {
-        P_ERR("catalog label not found for " FMT_KEY(PAIR_COUNT) ": %s\n",
-            conf->pc[i]);
-        return FCFC_ERR_CFG;
+    }
+  }
+  else{
+    conf->pcout = NULL;
+    for (int i = 0; i < conf->npc; i++) {
+      conf->comp_pc[i] = true;
+      /* Check if the labels exist if evaluating pair counts. */
+      if (conf->comp_pc[i]) {
+        int label_found = 0;
+        for (int j = 0; j < conf->ninput; j++) {
+          if (conf->pc[i][0] == conf->label[j]) label_found += 1;
+          if (conf->pc[i][1] == conf->label[j]) label_found += 1;
+        }
+        if (label_found != 2) {
+          P_ERR("catalog label not found for " FMT_KEY(PAIR_COUNT) ": %s\n",
+              conf->pc[i]);
+          return FCFC_ERR_CFG;
+        }
       }
     }
   }
@@ -791,12 +812,15 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
       }
     }
     /* CF_OUTPUT_FILE */ 
-    CHECK_EXIST_ARRAY(CF_OUTPUT_FILE, cfg, &conf->cfout, num);
-    CHECK_STR_ARRAY_LENGTH(CF_OUTPUT_FILE, cfg, conf->cfout, num, conf->ncf);
-    for (int i = 0; i < conf->ncf; i++) {
-      if ((e = check_output(conf->cfout[i], "CF_OUTPUT_FILE", conf->ovwrite,
-          FCFC_OVERWRITE_CFONLY))) return e;
+    if (cfg_is_set(cfg, &conf->cfout)){
+      CHECK_EXIST_ARRAY(CF_OUTPUT_FILE, cfg, &conf->cfout, num);
+      CHECK_STR_ARRAY_LENGTH(CF_OUTPUT_FILE, cfg, conf->cfout, num, conf->ncf);
+      for (int i = 0; i < conf->ncf; i++) {
+        if ((e = check_output(conf->cfout[i], "CF_OUTPUT_FILE", conf->ovwrite,
+            FCFC_OVERWRITE_CFONLY))) return e;
+      }
     }
+    else conf->cfout = NULL;
 
     if (conf->bintype == FCFC_BIN_SMU) {
       /* MULTIPOLE */
@@ -826,13 +850,16 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
         }
 
         /* MULTIPOLE_FILE */
-        CHECK_EXIST_ARRAY(MULTIPOLE_FILE, cfg, &conf->mpout, num);
-        CHECK_STR_ARRAY_LENGTH(MULTIPOLE_FILE, cfg, conf->mpout,
-            num, conf->ncf);
-        for (int i = 0; i < conf->ncf; i++) {
-          if ((e = check_output(conf->mpout[i], "MULTIPOLE_FILE",
-              conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+        if (cfg_is_set(cfg, &conf->mpout)){
+          CHECK_EXIST_ARRAY(MULTIPOLE_FILE, cfg, &conf->mpout, num);
+          CHECK_STR_ARRAY_LENGTH(MULTIPOLE_FILE, cfg, conf->mpout,
+              num, conf->ncf);
+          for (int i = 0; i < conf->ncf; i++) {
+            if ((e = check_output(conf->mpout[i], "MULTIPOLE_FILE",
+                conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+          }
         }
+        else conf->mpout = NULL;
       }
     }
     else if (conf->bintype == FCFC_BIN_SPI) {
@@ -840,13 +867,16 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
       if (!cfg_is_set(cfg, &conf->wp)) conf->wp = DEFAULT_PROJECTED_CF;
       if (conf->wp) {
         /* PROJECTED_FILE */
-        CHECK_EXIST_ARRAY(PROJECTED_FILE, cfg, &conf->wpout, num);
-        CHECK_STR_ARRAY_LENGTH(PROJECTED_FILE, cfg, conf->wpout,
-            num, conf->ncf);
-        for (int i = 0; i < conf->ncf; i++) {
-          if ((e = check_output(conf->wpout[i], "PROJECTED_FILE",
-              conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+        if (cfg_is_set(cfg, &conf->wpout)){
+          CHECK_EXIST_ARRAY(PROJECTED_FILE, cfg, &conf->wpout, num);
+          CHECK_STR_ARRAY_LENGTH(PROJECTED_FILE, cfg, conf->wpout,
+              num, conf->ncf);
+          for (int i = 0; i < conf->ncf; i++) {
+            if ((e = check_output(conf->wpout[i], "PROJECTED_FILE",
+                conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+          }
         }
+        else conf->wpout = NULL;
       }
     }
   }
@@ -980,35 +1010,43 @@ static void conf_print(const CONF *conf
   printf("\n  PAIR_COUNT      = %s", conf->pc[0]);
   for (int i = 1; i < conf->npc; i++) printf(" , %s", conf->pc[i]);
 
-  printf("\n  PAIR_COUNT_FILE = <%c> %s",
-      conf->comp_pc[0] ? 'W' : 'R', conf->pcout[0]);
-  for (int i = 1; i < conf->npc; i++) {
-    printf("\n                    <%c> %s",
-        conf->comp_pc[i] ? 'W' : 'R', conf->pcout[i]);
+  if (conf->pcout){
+    printf("\n  PAIR_COUNT_FILE = <%c> %s",
+        conf->comp_pc[0] ? 'W' : 'R', conf->pcout[0]);
+    for (int i = 1; i < conf->npc; i++) {
+      printf("\n                    <%c> %s",
+          conf->comp_pc[i] ? 'W' : 'R', conf->pcout[i]);
+    }
   }
 
   if (conf->ncf) {
     printf("\n  CF_ESTIMATOR    = %s", conf->cf[0]);
     for (int i = 1; i < conf->ncf; i++)
       printf("\n                    %s", conf->cf[i]);
-    printf("\n  CF_OUTPUT_FILE  = %s", conf->cfout[0]);
-    for (int i = 1; i < conf->ncf; i++)
-      printf("\n                    %s", conf->cfout[i]);
+    if (conf->cfout){  
+      printf("\n  CF_OUTPUT_FILE  = %s", conf->cfout[0]);
+      for (int i = 1; i < conf->ncf; i++)
+        printf("\n                    %s", conf->cfout[i]);
+    }
 
     if (conf->bintype == FCFC_BIN_SMU && conf->npole) {
       printf("\n  MULTIPOLE       = %d", conf->poles[0]);
       for (int i = 1; i < conf->npole; i++) printf(" , %d", conf->poles[i]);
-      printf("\n  MULTIPOLE_FILE  = %s", conf->mpout[0]);
-      for (int i = 1; i < conf->ncf; i++)
-        printf("\n                    %s", conf->mpout[i]);
+      if (conf->mpout){  
+        printf("\n  MULTIPOLE_FILE  = %s", conf->mpout[0]);
+        for (int i = 1; i < conf->ncf; i++)
+          printf("\n                    %s", conf->mpout[i]);
+      }
     }
 
     if (conf->bintype == FCFC_BIN_SPI) {
       printf("\n  PROJECTED_CF    = %c", conf->wp ? 'T' : 'F');
       if (conf->wp) {
-        printf("\n  PROJECTED_FILE  = %s", conf->wpout[0]);
-        for (int i = 1; i < conf->ncf; i++)
-          printf("\n                    %s", conf->wpout[i]);
+        if (conf->wpout){  
+          printf("\n  PROJECTED_FILE  = %s", conf->wpout[0]);
+          for (int i = 1; i < conf->ncf; i++)
+            printf("\n                    %s", conf->wpout[i]);
+        }
       }
     }
   }

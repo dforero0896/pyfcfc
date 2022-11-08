@@ -167,11 +167,13 @@ static int eval_pairs(const CONF *conf, CF *cf
       }
   
       /* Save pair counts. */
-      int e = save_res(conf, cf, i, FCFC_OUTPUT_PAIR_COUNT);
-      if (e) {
-        CLEAN_TREE;
-        FCFC_QUIT(e);
-      }
+      if (conf->pcout){
+        int e = save_res(conf, cf, i, FCFC_OUTPUT_PAIR_COUNT);
+        if (e) {
+          CLEAN_TREE;
+          FCFC_QUIT(e);
+        }
+    }
 #ifdef MPI
     }
 #endif
@@ -300,9 +302,11 @@ static int eval_cf_exp(const CONF *conf, CF *cf) {
 #endif
 
     /* Save the correlation function. */
-    int e = save_res(conf, cf, i, FCFC_OUTPUT_2PCF_RAW);
-    if (e) {
-      free(pc); return e;
+    if (conf->cfout){
+      int e = save_res(conf, cf, i, FCFC_OUTPUT_2PCF_RAW);
+      if (e) {
+        free(pc); return e;
+      }
     }
   }
 
@@ -342,8 +346,10 @@ static int eval_cf_mp(const CONF *conf, CF *cf) {
     }
 
     /* Save the correlation function multipoles. */
-    int e = save_res(conf, cf, i, FCFC_OUTPUT_2PCF_INTEG);
-    if (e) return e;
+    if (conf->mpout){
+      int e = save_res(conf, cf, i, FCFC_OUTPUT_2PCF_INTEG);
+      if (e) return e;
+    }
   }
 
   printf(FMT_DONE);
@@ -376,8 +382,10 @@ static int eval_cf_wp(const CONF *conf, CF *cf) {
     }
 
     /* Save the projected correlation functions. */
-    int e = save_res(conf, cf, i, FCFC_OUTPUT_2PCF_INTEG);
-    if (e) return e;
+    if (conf->wpout){
+      int e = save_res(conf, cf, i, FCFC_OUTPUT_2PCF_INTEG);
+      if (e) return e;
+    }
   }
 
   printf(FMT_DONE);

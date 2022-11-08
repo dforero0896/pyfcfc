@@ -27,7 +27,7 @@ wran = np.ones(rand.shape[0])
 
 
 
-results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], 10**(np.linspace(-3, 2, 50)), None, 100, "test/fcfc_box_ell.conf")
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], 10**(np.linspace(-3, 2.2, 51)), None, 100, "test/fcfc_box_ell.conf")
 
 
 fig, ax = pplt.subplots(nrows=2, ncols=2, share=0)
