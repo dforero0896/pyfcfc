@@ -182,10 +182,10 @@ results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran],
                         cf = ['AA / @@ - 1', '(AB - AC - BD + CD) / CD']) # CF estimator (not necessary if only pair counts are required)
 
 # Projected: Conf sets the CF type. BIN_TYPE = 2
-results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], conf = "test/fcfc_box_wp.conf") 
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], conf = "test/fcfc_box_wp.conf") 
 
 # Isotropic: Conf sets the CF type. BIN_TYPE = 0
-results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], conf = "test/fcfc_box_iso.conf") 
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran],  conf = "test/fcfc_box_iso.conf") 
 
 ```
 ### Survey-like data
@@ -224,10 +224,10 @@ results = py_compute_cf([data, rand], [wdat, wran],
                         convert = 'T') #Coordinate conversion
 
 # Projected: Conf sets the CF type. BIN_TYPE = 2
-results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], conf = "test/fcfc_lc_wp.conf")
+results = py_compute_cf([data, rand], [wdat, wran],  conf = "test/fcfc_lc_wp.conf")
 
 # Isotropic: Conf sets the CF type. BIN_TYPE = 0
-results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], conf = "test/fcfc_lc_iso.conf")
+results = py_compute_cf([data, rand], [wdat, wran],  conf = "test/fcfc_lc_iso.conf")
 
 ```
 
