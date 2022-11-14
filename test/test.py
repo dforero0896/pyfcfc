@@ -27,7 +27,8 @@ wran = np.ones(rand.shape[0])
 
 
 
-results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], 10**(np.linspace(-3, 2.2, 51)), None, 100, "test/fcfc_box_ell.conf")
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], 10**(np.linspace(-3, 2.2, 51)), None, 100, conf = "test/fcfc_box_ell.conf", label = ['A', 'B', 'C', 'D'])
+#results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], 10**(np.linspace(-3, 2.2, 51)), None, 100, label = ['A', 'B', 'C', 'D'], bin=1, pair = ['AA', 'AB', 'AC', 'BD', 'BB', 'CD'], box=1000, multipole = [0, 2, 4], cf = ['AA / @@ - 1', '(AB - AC - BD + CD) / CD'])
 
 
 fig, ax = pplt.subplots(nrows=2, ncols=2, share=0)
@@ -38,7 +39,7 @@ for j in range(results['multipoles'].shape[0]):
 fig.savefig("test/test.png", dpi=300)
 
 
-results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], np.arange(0, 200, 1, dtype=np.double), np.arange(0, 200, 1, dtype=np.double), 0, "test/fcfc_box_wp.conf")
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], np.arange(0, 200, 1, dtype=np.double), np.arange(0, 200, 1, dtype=np.double), 0, conf = "test/fcfc_box_wp.conf")
 for j in range(results['projected'].shape[0]):
     ax[3].plot(results['s'], results['s'] * results['projected'][j,:], label = f'wp {labels[j]}')
     ax[3].format(xlabel = "$s$ [Mpc/$h$]", ylabel = r"$sw_p$")
@@ -46,9 +47,9 @@ fig.savefig("test/test.png", dpi=300)
 
 
 
-results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], np.arange(0, 200, 1, dtype=np.double), None, 1, "test/fcfc_box_iso.conf")
-for j in range(results['cf']['cf'].shape[0]):
-    ax[0].plot(results['s'], results['s']**2 * results['cf']['cf'][j,:], label = f'Iso {labels[j]}', ls = '--')
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], np.arange(0, 200, 1, dtype=np.double), None, 1, conf = "test/fcfc_box_iso.conf")
+for j in range(results['cf'].shape[0]):
+    ax[0].plot(results['s'], results['s']**2 * results['cf'][j,:], label = f'Iso {labels[j]}', ls = '--')
 
 ax.legend(loc='top')
 fig.savefig("test/test.png", dpi=300)
