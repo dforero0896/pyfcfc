@@ -480,7 +480,7 @@ static CONF *conf_init(void) {
   CONF *conf = calloc(1, sizeof *conf);
   if (!conf) return NULL;
   conf->fconf = conf->label = conf->comment = NULL;
-  conf->fcnvt = conf->fsbin = conf->fpbin = NULL;
+  conf->fcnvt =  NULL;
   conf->input = conf->fmtr = conf->pos = conf->wt = conf->sel = NULL;
   conf->pc = conf->pcout = conf->cf = conf->cfout = NULL;
   conf->mpout = conf->wpout = NULL;
@@ -519,15 +519,8 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
   /* Configuration parameters. */
   const cfg_param_t params[] = {
     {'c', "conf"        , "CONFIG_FILE"    , CFG_DTYPE_STR , &conf->fconf   },
-    {'i', "input"       , "CATALOG"        , CFG_ARRAY_STR , &conf->input   },
     {'l', "label"       , "CATALOG_LABEL"  , CFG_ARRAY_CHAR, &conf->label   },
-    {'T', "type"        , "CATALOG_TYPE"   , CFG_ARRAY_INT , &conf->ftype   },
-    { 0 , "skip"        , "ASCII_SKIP"     , CFG_ARRAY_LONG, &conf->skip    },
-    { 0 , "comment"     , "ASCII_COMMENT"  , CFG_ARRAY_CHAR, &conf->comment },
-    {'f', "formatter"   , "ASCII_FORMATTER", CFG_ARRAY_STR , &conf->fmtr    },
-    {'x', "position"    , "POSITION"       , CFG_ARRAY_STR , &conf->pos     },
     {'w', "weight"      , "WEIGHT"         , CFG_ARRAY_STR , &conf->wt      },
-    {'s', "select"      , "SELECTION"      , CFG_ARRAY_STR , &conf->sel     },
     { 0 , "convert"     , "COORD_CONVERT"  , CFG_ARRAY_BOOL, &conf->cnvt    },
     {'d', "omega-m"     , "OMEGA_M"        , CFG_DTYPE_DBL , &conf->omega_m },
     { 0 , "omega-l"     , "OMEGA_LAMBDA"   , CFG_DTYPE_DBL , &conf->omega_l },
@@ -544,15 +537,6 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
     {'M', "mp-output"   , "MULTIPOLE_FILE" , CFG_ARRAY_STR , &conf->mpout   },
     {'u', "wp"          , "PROJECTED_CF"   , CFG_DTYPE_BOOL, &conf->wp      },
     {'U', "wp-output"   , "PROJECTED_FILE" , CFG_ARRAY_STR , &conf->wpout   },
-    { 0 , "s-file"      , "SEP_BIN_FILE"   , CFG_DTYPE_STR , &conf->fsbin   },
-    { 0 , "s-min"       , "SEP_BIN_MIN"    , CFG_DTYPE_DBL , &conf->smin    },
-    { 0 , "s-max"       , "SEP_BIN_MAX"    , CFG_DTYPE_DBL , &conf->smax    },
-    { 0 , "s-step"      , "SEP_BIN_SIZE"   , CFG_DTYPE_DBL , &conf->ds      },
-    { 0 , "mu-num"      , "MU_BIN_NUM"     , CFG_DTYPE_INT , &conf->nmu     },
-    { 0 , "pi-file"     , "PI_BIN_FILE"    , CFG_DTYPE_STR , &conf->fpbin   },
-    { 0 , "pi-min"      , "PI_BIN_MIN"     , CFG_DTYPE_DBL , &conf->pmin    },
-    { 0 , "pi-max"      , "PI_BIN_MAX"     , CFG_DTYPE_DBL , &conf->pmax    },
-    { 0 , "pi-step"     , "PI_BIN_SIZE"    , CFG_DTYPE_DBL , &conf->dpi     },
     {'F', "out-format"  , "OUTPUT_FORMAT"  , CFG_DTYPE_INT , &conf->ofmt    },
     {'O', "overwrite"   , "OVERWRITE"      , CFG_DTYPE_INT , &conf->ovwrite },
     {'v', "verbose"     , "VERBOSE"        , CFG_DTYPE_BOOL, &conf->verbose }
@@ -746,16 +730,6 @@ Return:
 static int conf_verify(const cfg_t *cfg, CONF *conf) {
   int e, num;
 
-  /* CATALOG */
-//  CHECK_EXIST_ARRAY(CATALOG, cfg, &conf->input, conf->ninput);
-//  if (conf->ninput > 26) {
-//    P_ERR("there can be at most 26 catalogs set via " FMT_KEY(CATALOG) "\n");
-//    return FCFC_ERR_CFG;
-//  }
-//  for (int i = 0; i < conf->ninput; i++) {
-//    if ((e = check_input(conf->input[i], "CATALOG"))) return e;
-//  }
-
   /* CATALOG_LABEL */
   num = cfg_get_size(cfg, &conf->label);
   conf->ninput = cfg_get_size(cfg, &conf->label);
@@ -787,77 +761,7 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     }
   }
 
-//  /* CATALOG_TYPE */
-//  if ((num = cfg_get_size(cfg, &conf->ftype))) {
-//    CHECK_ARRAY_LENGTH(CATALOG_TYPE, cfg, conf->ftype, "%d", num, conf->ninput);
-//  }
-//  conf->ascii = false;
-//  for (int i = 0; i < conf->ninput; i++) {
-//    int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//    switch (type) {
-//      case FCFC_FFMT_ASCII:
-//        conf->ascii = true;
-//        break;
-//      case FCFC_FFMT_FITS:
-//#ifdef WITH_CFITSIO
-//        break;
-//#else
-//        P_ERR("FITS format is not enabled\n"
-//            "Please re-compile the code with option -DWITH_CFITSIO\n");
-//        return FCFC_ERR_CFG;
-//#endif
-//      case FCFC_FFMT_HDF5:
-//#ifdef WITH_HDF5
-//        break;
-//#else
-//        P_ERR("HDF5 format is not enabled\n"
-//            "Please re-compile the code with opetion -DWITH_HDF5\n");
-//        return FCFC_ERR_CFG;
-//#endif
-//      default:
-//        P_ERR("invalid " FMT_KEY(CATALOG_TYPE) ": %d\n", type);
-//        return FCFC_ERR_CFG;
-//    }
-//  }
-//
-//  /* Check format settings for ASCII catalogues. */
-//  if (conf->ascii) {
-//    /* ASCII_SKIP */
-//    if ((num = cfg_get_size(cfg, &conf->skip))) {
-//      CHECK_ARRAY_LENGTH(ASCII_SKIP, cfg, conf->skip, "%ld", num, conf->ninput);
-//      for (int i = 0; i < conf->ninput; i++) {
-//        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type == FCFC_FFMT_ASCII && conf->skip[i] < 0) {
-//          P_ERR(FMT_KEY(ASCII_SKIP) " cannot be negative\n");
-//          return FCFC_ERR_CFG;
-//        }
-//      }
-//    }
-//
-//    /* ASCII_COMMENT */
-//    if ((num = cfg_get_size(cfg, &conf->comment))) {
-//      CHECK_ARRAY_LENGTH(ASCII_COMMENT, cfg, conf->comment, "%c",
-//          num, conf->ninput);
-//      for (int i = 0; i < conf->ninput; i++) {
-//        int type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type == FCFC_FFMT_ASCII) {
-//          if (conf->comment[i] && !isgraph(conf->comment[i])) {
-//            P_ERR("invalid " FMT_KEY(ASCII_COMMENT) ": '%c' (ASCII code: %d)\n",
-//                conf->comment[i], conf->comment[i]);
-//            return FCFC_ERR_CFG;
-//          }
-//        }
-//      }
-//    }
-//
-//    /* ASCII_FORMATTER */
-//    CHECK_EXIST_ARRAY(ASCII_FORMATTER, cfg, &conf->fmtr, num);
-//    CHECK_STR_ARRAY_LENGTH(ASCII_FORMATTER, cfg, conf->fmtr, num, conf->ninput);
-//  }
-//
-//  /* POSITION */
-//  CHECK_EXIST_ARRAY(POSITION, cfg, &conf->pos, num);
-//  CHECK_STR_ARRAY_LENGTH(POSITION, cfg, conf->pos, num, conf->ninput * 3);
+
 
   /* WEIGHT */
   if (!(conf->has_wt = malloc(conf->ninput * sizeof(bool)))) {
@@ -866,25 +770,6 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
   }
   // We will manage weighting defaults from p/cython 
   for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = true;
-//  if ((num = cfg_get_size(cfg, &conf->wt))) {
-//    CHECK_STR_ARRAY_LENGTH(WEIGHT, cfg, conf->wt, num, conf->ninput);
-//    for (int i = 0; i < conf->ninput; i++) {
-//      /* Disable weighting if the weight is 1 or empty. */
-//      if ((conf->wt[i][0] == '1' && conf->wt[i][1] == '\0') ||
-//          (((conf->wt[i][0] == '\'' && conf->wt[i][1] == '\'') ||
-//          (conf->wt[i][0] == '"' && conf->wt[i][1] == '"')) &&
-//          conf->wt[i][2] == '\0')) conf->has_wt[i] = false;
-//      else conf->has_wt[i] = true;
-//    }
-//  }
-//  else {
-//    for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = false;
-//  }
-//
-//  /* SELECTION */
-//  if ((num = cfg_get_size(cfg, &conf->sel))) {
-//    CHECK_STR_ARRAY_LENGTH(SELECTION, cfg, conf->sel, num, conf->ninput);
-//  }
 
   /* COORD_CONVERT */
   if ((num = cfg_get_size(cfg, &conf->cnvt))) {
@@ -989,26 +874,47 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
   }
 
   /* PAIR_COUNT_FILE */
-  CHECK_EXIST_ARRAY(PAIR_COUNT_FILE, cfg, &conf->pcout, num);
-  CHECK_STR_ARRAY_LENGTH(PAIR_COUNT_FILE, cfg, conf->pcout, num, conf->npc);
-  for (int i = 0; i < conf->npc; i++) {
-    e = check_output(conf->pcout[i], "PAIR_COUNT_FILE", conf->ovwrite,
-        FCFC_OVERWRITE_ALL);
-    if (!e) conf->comp_pc[i] = true;
-    else if (e == FCFC_ERR_SAVE) conf->comp_pc[i] = false;
-    else return e;
+  if (cfg_is_set(cfg, &conf->pcout)){
+    CHECK_EXIST_ARRAY(PAIR_COUNT_FILE, cfg, &conf->pcout, num);
+    CHECK_STR_ARRAY_LENGTH(PAIR_COUNT_FILE, cfg, conf->pcout, num, conf->npc);
+    for (int i = 0; i < conf->npc; i++) {
+      e = check_output(conf->pcout[i], "PAIR_COUNT_FILE", conf->ovwrite,
+          FCFC_OVERWRITE_ALL);
+      if (!e) conf->comp_pc[i] = true;
+      else if (e == FCFC_ERR_SAVE) conf->comp_pc[i] = false;
+      else return e;
 
-    /* Check if the labels exist if evaluating pair counts. */
-    if (conf->comp_pc[i]) {
-      int label_found = 0;
-      for (int j = 0; j < conf->ninput; j++) {
-        if (conf->pc[i][0] == conf->label[j]) label_found += 1;
-        if (conf->pc[i][1] == conf->label[j]) label_found += 1;
+      /* Check if the labels exist if evaluating pair counts. */
+      if (conf->comp_pc[i]) {
+        int label_found = 0;
+        for (int j = 0; j < conf->ninput; j++) {
+          if (conf->pc[i][0] == conf->label[j]) label_found += 1;
+          if (conf->pc[i][1] == conf->label[j]) label_found += 1;
+        }
+        if (label_found != 2) {
+          P_ERR("catalog label not found for " FMT_KEY(PAIR_COUNT) ": %s\n",
+              conf->pc[i]);
+          return FCFC_ERR_CFG;
+        }
       }
-      if (label_found != 2) {
-        P_ERR("catalog label not found for " FMT_KEY(PAIR_COUNT) ": %s\n",
-            conf->pc[i]);
-        return FCFC_ERR_CFG;
+    }
+  }
+  else{
+    conf->pcout = NULL;
+    for (int i = 0; i < conf->npc; i++) {
+      conf->comp_pc[i] = true;
+      /* Check if the labels exist if evaluating pair counts. */
+      if (conf->comp_pc[i]) {
+        int label_found = 0;
+        for (int j = 0; j < conf->ninput; j++) {
+          if (conf->pc[i][0] == conf->label[j]) label_found += 1;
+          if (conf->pc[i][1] == conf->label[j]) label_found += 1;
+        }
+        if (label_found != 2) {
+          P_ERR("catalog label not found for " FMT_KEY(PAIR_COUNT) ": %s\n",
+              conf->pc[i]);
+          return FCFC_ERR_CFG;
+        }
       }
     }
   }
@@ -1022,12 +928,15 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
       }
     }
     /* CF_OUTPUT_FILE */
-    CHECK_EXIST_ARRAY(CF_OUTPUT_FILE, cfg, &conf->cfout, num);
-    CHECK_STR_ARRAY_LENGTH(CF_OUTPUT_FILE, cfg, conf->cfout, num, conf->ncf);
-    for (int i = 0; i < conf->ncf; i++) {
-      if ((e = check_output(conf->cfout[i], "CF_OUTPUT_FILE", conf->ovwrite,
-          FCFC_OVERWRITE_CFONLY))) return e;
+    if (cfg_is_set(cfg, &conf->cfout)){
+      CHECK_EXIST_ARRAY(CF_OUTPUT_FILE, cfg, &conf->cfout, num);
+      CHECK_STR_ARRAY_LENGTH(CF_OUTPUT_FILE, cfg, conf->cfout, num, conf->ncf);
+      for (int i = 0; i < conf->ncf; i++) {
+        if ((e = check_output(conf->cfout[i], "CF_OUTPUT_FILE", conf->ovwrite,
+            FCFC_OVERWRITE_CFONLY))) return e;
+      }
     }
+    else conf->cfout = NULL;
 
     if (conf->bintype == FCFC_BIN_SMU) {
       /* MULTIPOLE */
@@ -1057,13 +966,16 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
         }
 
         /* MULTIPOLE_FILE */
-        CHECK_EXIST_ARRAY(MULTIPOLE_FILE, cfg, &conf->mpout, num);
-        CHECK_STR_ARRAY_LENGTH(MULTIPOLE_FILE, cfg, conf->mpout,
-            num, conf->ncf);
-        for (int i = 0; i < conf->ncf; i++) {
-          if ((e = check_output(conf->mpout[i], "MULTIPOLE_FILE",
-              conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+        if (cfg_is_set(cfg, &conf->mpout)){
+          CHECK_EXIST_ARRAY(MULTIPOLE_FILE, cfg, &conf->mpout, num);
+          CHECK_STR_ARRAY_LENGTH(MULTIPOLE_FILE, cfg, conf->mpout,
+              num, conf->ncf);
+          for (int i = 0; i < conf->ncf; i++) {
+            if ((e = check_output(conf->mpout[i], "MULTIPOLE_FILE",
+                conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+          }
         }
+        else conf->mpout = NULL;
       }
     }
     else if (conf->bintype == FCFC_BIN_SPI) {
@@ -1071,103 +983,23 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
       if (!cfg_is_set(cfg, &conf->wp)) conf->wp = DEFAULT_PROJECTED_CF;
       if (conf->wp) {
         /* PROJECTED_FILE */
-        CHECK_EXIST_ARRAY(PROJECTED_FILE, cfg, &conf->wpout, num);
-        CHECK_STR_ARRAY_LENGTH(PROJECTED_FILE, cfg, conf->wpout,
-            num, conf->ncf);
-        for (int i = 0; i < conf->ncf; i++) {
-          if ((e = check_output(conf->wpout[i], "PROJECTED_FILE",
-              conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+        if (cfg_is_set(cfg, &conf->wpout)){
+          CHECK_EXIST_ARRAY(PROJECTED_FILE, cfg, &conf->wpout, num);
+          CHECK_STR_ARRAY_LENGTH(PROJECTED_FILE, cfg, conf->wpout,
+              num, conf->ncf);
+          for (int i = 0; i < conf->ncf; i++) {
+            if ((e = check_output(conf->wpout[i], "PROJECTED_FILE",
+                conf->ovwrite, FCFC_OVERWRITE_CFONLY))) return e;
+          }
         }
+        else conf->wpout = NULL;
       }
     }
   }
   
   /* SEP_BIN_FILE */
-  if (cfg_is_set(cfg, &conf->fsbin)) {
-    if ((e = check_input(conf->fsbin, "SEP_BIN_FILE"))) return e;
-  }
-  else {
-    /* SEP_BIN_MIN, SEP_BIN_MAX, SEP_BIN_SIZE */
-    CHECK_EXIST_PARAM(SEP_BIN_MIN, cfg, &conf->smin);
-    CHECK_EXIST_PARAM(SEP_BIN_MAX, cfg, &conf->smax);
-    CHECK_EXIST_PARAM(SEP_BIN_SIZE, cfg, &conf->ds);
-    if (!isfinite(conf->ds) || conf->ds <= 0) {
-      P_ERR(FMT_KEY(SEP_BIN_SIZE) " must be finite and positive\n");
-      return FCFC_ERR_CFG;
-    }
-    if (conf->smin + conf->ds > conf->smax + DOUBLE_TOL) {
-      P_ERR(FMT_KEY(SEP_BIN_MIN) " + " FMT_KEY(SEP_BIN_SIZE)
-          " cannot be larger than " FMT_KEY(SEP_BIN_MAX) "\n");
-      return FCFC_ERR_CFG;
-    }
-    double smax = conf->smin;
-    conf->nsbin = 0;
-    while (smax < conf->smax - DOUBLE_TOL) {
-      smax += conf->ds;
-      if (++conf->nsbin > FCFC_MAX_NSBIN) {
-        P_ERR("too many separations bins given " FMT_KEY(SEP_BIN_MIN) ", "
-            FMT_KEY(SEP_BIN_MAX) ", and " FMT_KEY(SEP_BIN_SIZE) "\n");
-        return FCFC_ERR_CFG;
-      }
-    }
-    if (smax > conf->smax + DOUBLE_TOL) {
-      P_WRN("reduce " FMT_KEY(SEP_BIN_MAX) " to " OFMT_DBL " given "
-          FMT_KEY(SEP_BIN_MIN) " and " FMT_KEY(SEP_BIN_SIZE) "\n", smax);
-    }
-    conf->smax = smax;
-  }
-
-  if (conf->npole) {
-    /* MU_BIN_NUM */
-    CHECK_EXIST_PARAM(MU_BIN_NUM, cfg, &conf->nmu);
-    if (conf->nmu <= 1) {
-      P_ERR(FMT_KEY(MU_BIN_NUM) " must be larger than 1\n");
-      return FCFC_ERR_CFG;
-    }
-    if (conf->nmu > FCFC_MAX_NMU) {
-      P_ERR(FMT_KEY(MU_BIN_NUM) " cannot be larger than %d\n", FCFC_MAX_NMU);
-      return FCFC_ERR_CFG;
-    }
-  }
-  else if (conf->bintype == FCFC_BIN_ISO) conf->nmu = 1;
-
-  if (conf->bintype == FCFC_BIN_SPI) {
-    /* PI_BIN_FILE */
-    if (cfg_is_set(cfg, &conf->fpbin)) {
-      if ((e = check_input(conf->fpbin, "PI_BIN_FILE"))) return e;
-    }
-    else {
-      /* PI_BIN_MIN, PI_BIN_MAX, PI_BIN_SIZE */
-      CHECK_EXIST_PARAM(PI_BIN_MIN, cfg, &conf->pmin);
-      CHECK_EXIST_PARAM(PI_BIN_MAX, cfg, &conf->pmax);
-      CHECK_EXIST_PARAM(PI_BIN_SIZE, cfg, &conf->dpi);
-      if (!isfinite(conf->dpi) || conf->dpi <= 0) {
-        P_ERR(FMT_KEY(PI_BIN_SIZE) " must be finite and positive\n");
-        return FCFC_ERR_CFG;
-      }
-      if (conf->pmin + conf->dpi > conf->pmax + DOUBLE_TOL) {
-        P_ERR(FMT_KEY(PI_BIN_MIN) " + " FMT_KEY(PI_BIN_SIZE)
-            " cannot be larger than " FMT_KEY(PI_BIN_MAX) "\n");
-        return FCFC_ERR_CFG;
-      }
-      double pmax = conf->pmin;
-      conf->npbin = 0;
-      while (pmax < conf->pmax - DOUBLE_TOL) {
-        pmax += conf->dpi;
-        if (++conf->npbin > FCFC_MAX_NSBIN) {
-          P_ERR("too many pi bins given " FMT_KEY(PI_BIN_NUM) ", "
-              FMT_KEY(PI_BIN_MAX) ", and " FMT_KEY(PI_BIN_SIZE) "\n");
-          return FCFC_ERR_CFG;
-        }
-      }
-      if (pmax > conf->pmax + DOUBLE_TOL) {
-        P_WRN("reduce " FMT_KEY(PI_BIN_MAX) " to " OFMT_DBL " given "
-            FMT_KEY(PI_BIN_MIN) " and " FMT_KEY(PI_BIN_SIZE) "\n", pmax);
-      }
-      conf->pmax = pmax;
-    }
-  }
-
+  
+  
   /* OUTPUT_FORMAT */
   if (!cfg_is_set(cfg, &conf->ofmt)) conf->ofmt = DEFAULT_OUTPUT_FORMAT;
   switch (conf->ofmt) {
@@ -1205,79 +1037,10 @@ static void conf_print(const CONF *conf
   /* Configuration file */
   printf("\n  CONFIG_FILE     = %s", conf->fconf);
   /* Input catalogs. */
-//  printf("\n  CATALOG         = %s", conf->input[0]);
-//  for (int i = 1; i < conf->ninput; i++)
-//    printf("\n                    %s", conf->input[i]);
 
   printf("\n  CATALOG_LABEL   = '%c'", conf->label[0]);
   for (int i = 1; i < conf->ninput; i++) printf(" , '%c'", conf->label[i]);
 
-//  const char *ftype[] = {"ASCII", "FITS", "HDF5"};
-//  const int ntype = sizeof(ftype) / sizeof(ftype[0]);
-//  if (!conf->ftype) {
-//    printf("\n  CATALOG_TYPE    = %d (%s)",
-//        DEFAULT_FILE_TYPE,
-//        DEFAULT_FILE_TYPE < ntype ? ftype[DEFAULT_FILE_TYPE] : "unknown");
-//  }
-//  else {
-//    printf("\n  CATALOG_TYPE    = %d (%s)",
-//        conf->ftype[0],
-//        conf->ftype[0] < ntype ? ftype[conf->ftype[0]] : "unknown");
-//    for (int i = 1; i < conf->ninput; i++) {
-//      printf("\n                    %d (%s)",
-//          conf->ftype[i],
-//          conf->ftype[i] < ntype ? ftype[conf->ftype[i]] : "unknown");
-//    }
-//  }
-
-//  if (conf->ascii) {
-//    if (!conf->skip) {
-//      printf("\n  ASCII_SKIP      = %ld", (long) DEFAULT_ASCII_SKIP);
-//    }
-//    else {
-//      printf("\n  ASCII_SKIP      = %ld", conf->skip[0]);
-//      for (int i = 1; i < conf->ninput; i++) printf(" , %ld", conf->skip[i]);
-//    }
-//
-//    if (!conf->comment) {
-//      if (DEFAULT_ASCII_COMMENT == 0) printf("\n  ASCII_COMMENT   = ''");
-//      else printf("\n  ASCII_COMMENT   = '%c'", DEFAULT_ASCII_COMMENT);
-//    }
-//    else {
-//      int type = conf->ftype ? conf->ftype[0] : DEFAULT_FILE_TYPE;
-//      if (type != FCFC_FFMT_ASCII || conf->comment[0] == 0)
-//        printf("\n  ASCII_COMMENT   = ''");
-//      else printf("\n  ASCII_COMMENT   = '%c'", conf->comment[0]);
-//      for (int i = 1; i < conf->ninput; i++) {
-//        type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type != FCFC_FFMT_ASCII || conf->comment[i] == 0) printf(" , ''");
-//        else printf(" , '%c'", conf->comment[i]);
-//      }
-//    }
-//
-//    printf("\n  ASCII_FORMATTER = %s", conf->fmtr[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->fmtr[i]);
-//  }
-
-  //printf("\n  POSITION        = %s , %s , %s",
-  //    conf->pos[0], conf->pos[1], conf->pos[2]);
-  //for (int i = 1; i < conf->ninput; i++) {
-  //  printf("\n                    %s , %s , %s",
-  //      conf->pos[i * 3], conf->pos[i * 3 + 1], conf->pos[i * 3 + 2]);
-  //}
-
-//  if (conf->wt) {
-//    printf("\n  WEIGHT          = %s", conf->wt[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->wt[i]);
-//  }
-
-//  if (conf->sel) {
-//    printf("\n  SELECTION       = %s", conf->sel[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->sel[i]);
-//  }
 
   if (conf->cnvt) {
     printf("\n  COORD_CONVERT   = %c", conf->cnvt[0] ? 'T' : 'F');
@@ -1310,67 +1073,57 @@ static void conf_print(const CONF *conf
       conf->bintype < nbname ? bname[conf->bintype] : "unknown");
   printf("\n  PAIR_COUNT      = %s", conf->pc[0]);
   for (int i = 1; i < conf->npc; i++) printf(" , %s", conf->pc[i]);
-
-  printf("\n  PAIR_COUNT_FILE = <%c> %s",
-      conf->comp_pc[0] ? 'W' : 'R', conf->pcout[0]);
-  for (int i = 1; i < conf->npc; i++) {
-    printf("\n                    <%c> %s",
-        conf->comp_pc[i] ? 'W' : 'R', conf->pcout[i]);
+  if (conf->pcout){
+    printf("\n  PAIR_COUNT_FILE = <%c> %s",
+        conf->comp_pc[0] ? 'W' : 'R', conf->pcout[0]);
+    for (int i = 1; i < conf->npc; i++) {
+      printf("\n                    <%c> %s",
+          conf->comp_pc[i] ? 'W' : 'R', conf->pcout[i]);
+    }
   }
 
   if (conf->ncf) {
     printf("\n  CF_ESTIMATOR    = %s", conf->cf[0]);
     for (int i = 1; i < conf->ncf; i++)
       printf("\n                    %s", conf->cf[i]);
-    printf("\n  CF_OUTPUT_FILE  = %s", conf->cfout[0]);
-    for (int i = 1; i < conf->ncf; i++)
-      printf("\n                    %s", conf->cfout[i]);
+    if (conf->cfout){  
+      printf("\n  CF_OUTPUT_FILE  = %s", conf->cfout[0]);
+      for (int i = 1; i < conf->ncf; i++)
+        printf("\n                    %s", conf->cfout[i]);
+    }
 
     if (conf->bintype == FCFC_BIN_SMU && conf->npole) {
       printf("\n  MULTIPOLE       = %d", conf->poles[0]);
       for (int i = 1; i < conf->npole; i++) printf(" , %d", conf->poles[i]);
-      printf("\n  MULTIPOLE_FILE  = %s", conf->mpout[0]);
-      for (int i = 1; i < conf->ncf; i++)
-        printf("\n                    %s", conf->mpout[i]);
+      if (conf->mpout){  
+        printf("\n  MULTIPOLE_FILE  = %s", conf->mpout[0]);
+        for (int i = 1; i < conf->ncf; i++)
+          printf("\n                    %s", conf->mpout[i]);
+      }
     }
 
     if (conf->bintype == FCFC_BIN_SPI) {
       printf("\n  PROJECTED_CF    = %c", conf->wp ? 'T' : 'F');
       if (conf->wp) {
-        printf("\n  PROJECTED_FILE  = %s", conf->wpout[0]);
-        for (int i = 1; i < conf->ncf; i++)
-          printf("\n                    %s", conf->wpout[i]);
+        if (conf->wpout){  
+          printf("\n  PROJECTED_FILE  = %s", conf->wpout[0]);
+          for (int i = 1; i < conf->ncf; i++)
+            printf("\n                    %s", conf->wpout[i]);
+        }
       }
     }
   }
 
   /* Bin definitions. */
-  if (conf->fsbin) printf("\n  SEP_BIN_FILE    = %s", conf->fsbin);
-  else {
-    printf("\n  SEP_BIN_MIN     = " OFMT_DBL, conf->smin);
-    printf("\n  SEP_BIN_MAX     = " OFMT_DBL, conf->smax);
-    printf("\n  SEP_BIN_SIZE    = " OFMT_DBL " (%d bins)",
-        conf->ds, conf->nsbin);
-  }
-  if (conf->bintype == FCFC_BIN_SMU)
-    printf("\n  MU_BIN_NUM      = %d", conf->nmu);
-
-  if (conf->bintype == FCFC_BIN_SPI) {
-    if (conf->fpbin) printf("\n  PI_BIN_FILE     = %s", conf->fpbin);
-    else {
-      printf("\n  PI_BIN_MIN      = " OFMT_DBL, conf->pmin);
-      printf("\n  PI_BIN_MAX      = " OFMT_DBL, conf->pmax);
-      printf("\n  PI_BIN_SIZE     = " OFMT_DBL " (%d bins)",
-          conf->dpi, conf->npbin);
-    }
-  }
-
+  
   /* Others. */
   const char *sname[] = {"binary", "ASCII"};
   const int nsname = sizeof(sname) / sizeof(sname[0]);
-  printf("\n  OUTPUT_FORMAT   = %d (%s)", conf->ofmt,
-      conf->ofmt < nsname ? sname[conf->ofmt] : "unknown");
-  printf("\n  OVERWRITE       = %d", conf->ovwrite);
+  if (conf->wpout || conf->cfout || conf->pcout || conf->mpout){  
+    printf("\n  OUTPUT_FORMAT   = %d (%s)", conf->ofmt,
+        conf->ofmt < nsname ? sname[conf->ofmt] : "unknown");
+    printf("\n  OVERWRITE       = %d", conf->ovwrite);
+  }
 
 #ifdef MPI
   printf("\n  MPI_NUM_TASKS   = %d", para->ntask);
@@ -1444,15 +1197,8 @@ Arguments:
 ******************************************************************************/
 void conf_destroy(CONF *conf) {
   if (!conf) return;
-  FREE_STR_ARRAY(conf->input);
   FREE_ARRAY(conf->label);
-  FREE_ARRAY(conf->ftype);
-  FREE_ARRAY(conf->skip);
-  FREE_ARRAY(conf->comment);
-  FREE_STR_ARRAY(conf->fmtr);
-  FREE_STR_ARRAY(conf->pos);
   FREE_STR_ARRAY(conf->wt);
-  FREE_STR_ARRAY(conf->sel);
   FREE_ARRAY(conf->has_wt);
   FREE_ARRAY(conf->cnvt);
   FREE_ARRAY(conf->fcnvt);
@@ -1464,7 +1210,5 @@ void conf_destroy(CONF *conf) {
   FREE_ARRAY(conf->poles);
   FREE_STR_ARRAY(conf->mpout);
   FREE_STR_ARRAY(conf->wpout);
-  FREE_ARRAY(conf->fsbin);
-  FREE_ARRAY(conf->fpbin);
   free(conf);
 }

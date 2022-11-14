@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #endif
 
-CF* compute_cf(int argc, char *argv[], DATA* dat) {
+CF* compute_cf(int argc, char *argv[], DATA* dat, real* sbins, int ns, real* pbins, int np, int nmu) {
   CONF *conf = NULL;
   CF *cf = NULL;
 
@@ -41,7 +41,7 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
       return NULL;
     }
   
-    if (!(cf = cf_setup(conf
+    if (!(cf = cf_setup(conf, dat, sbins, ns, pbins, np, nmu
 #ifdef OMP
         , &para
 #endif
@@ -52,7 +52,7 @@ CF* compute_cf(int argc, char *argv[], DATA* dat) {
       return NULL;
     }
     
-  cf->data = dat; 
+  
   
 #ifdef MPI
   }

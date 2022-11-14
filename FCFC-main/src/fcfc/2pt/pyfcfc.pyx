@@ -158,7 +158,7 @@ cdef extern from *:
     void data_init(DATA* data) nogil
 cdef extern from "fcfc.h":
 
-    CF* compute_cf(int argc, char *argv[], DATA* dat) nogil
+    CF* compute_cf(int argc, char *argv[], DATA* dat, real* sbins, int ns, real* pbins, int np, int nmu) nogil
 
 
 cdef void npy_to_data(DATA* c_data, 
@@ -176,6 +176,24 @@ cdef void npy_to_data(DATA* c_data,
         for i in range(3):
             c_data[data_id].x[i][j] = <real> npy_pos[j,i]
         c_data[data_id].w[j] = <real> npy_wt[j]
+
+
+cdef void npy_to_data_f(DATA* c_data, 
+                        float[:,:] npy_pos,
+                        float[:] npy_wt,
+                        size_t data_id) nogil:
+
+    cdef size_t i, j
+    c_data[data_id].n = <size_t> npy_wt.shape[0]
+    for i in range(3):
+        c_data[data_id].x[i] = <double *> malloc(c_data[data_id].n * sizeof(real))
+    c_data[data_id].w = <double *> malloc(c_data[data_id].n * sizeof(double))
+
+    for j in prange(c_data[data_id].n, nogil=True):
+        for i in range(3):
+            c_data[data_id].x[i][j] = <real> npy_pos[j,i]
+        c_data[data_id].w[j] = <real> npy_wt[j]
+
 
 
 cdef dict retrieve_paircounts(CF* cf):
@@ -234,56 +252,28 @@ cdef dict retrieve_paircounts(CF* cf):
     return result
 
 
-cdef dict retrieve_correlations(CF* cf):
+cdef double[:,:,:] retrieve_correlations(CF* cf):
     # Results of count(s,mu) or xi(s,mu) as a list. 
-    result = {}
+    
     if cf.mp is not NULL:
-        result['smin'] = np.empty((cf.ns, cf.nmu))
-        result['smax'] = np.copy(result['smin'])
-        
-        result['mumin'] = np.copy(result['smin'])
-        result['mumax'] = np.copy(result['smin'])
-        for j in range(cf.nmu):
-            for i in range(cf.ns):
-                result['smin'][i,j] = cf.sbin_raw[i]
-                result['smax'][i,j] = cf.sbin_raw[i+1]
-                result['mumin'][i,j] = j / <double> cf.nmu
-                result['mumax'][i,j] = (j + 1) / <double> cf.nmu
-        result['cf'] = np.empty((cf.ncf, cf.ns, cf.nmu))
+        result = np.empty((cf.ncf, cf.ns, cf.nmu))
         for idx in range(cf.ncf):
             for j in range(cf.nmu):
                 for i in range(cf.ns):
-                    result['cf'][idx,i,j] = cf.cf[idx][i + j * cf.ns]
+                    result[idx,i,j] = cf.cf[idx][i + j * cf.ns]
     elif cf.wp is not NULL:
-        result['s_perp_min'] = np.empty((cf.ns, cf.np))
-        result['s_perp_max'] = np.copy(result['s_perp_min'])
-        
-        result['pimin'] = np.copy(result['s_perp_min'])
-        result['pimax'] = np.copy(result['s_perp_min'])
-        for j in range(cf.np):
-            for i in range(cf.ns):
-                result['s_perp_min'][i,j] = cf.sbin_raw[i]
-                result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
-                result['pimin'][i,j] = cf.pbin_raw[j]
-                result['pimax'][i,j] = cf.pbin_raw[j+1]
-        result['cf'] = np.empty((cf.ncf, cf.ns, cf.np))
+        result = np.empty((cf.ncf, cf.ns, cf.np))
         for idx in range(cf.ncf):
             for j in range(cf.np):
                 for i in range(cf.ns):
-                    result['cf'][idx,i,j] = cf.cf[idx][i + j * cf.ns]
+                    result[idx,i,j] = cf.cf[idx][i + j * cf.ns]
     else:
-        result['smin'] = np.empty(cf.ns)
-        result['smax'] = np.copy(result['smin'])
-        for i in range(cf.ns):
-                result['smin'][i] = cf.sbin_raw[i]
-                result['smax'][i] = cf.sbin_raw[i+1]
-        result['cf'] = np.empty((cf.ncf, cf.ns))
+        result = np.empty((1,cf.ncf, cf.ns))
         for idx in range(cf.ncf):
             for i in range(cf.ns):
-                result['cf'][idx,i] = cf.cf[idx][i]
+                result[0,idx,i] = cf.cf[idx][i]
         
     return result
-
 
 cdef double[:,:,:] retrieve_multipoles(CF* cf):
     results = np.empty((cf.ncf, cf.nl, cf.ns))
@@ -301,10 +291,12 @@ cdef double[:,:] retrieve_projected(CF* cf):
     return results
 
 def py_compute_cf(list data_cats,
-                  list data_wts,
-                  fcfc_conf_file,
-                ) :
-
+                 list data_wts,
+                 real[:] sedges,
+                 real[:] pedges,
+                 int nmu,
+                 **kwargs
+                ):
     assert len(data_cats) == len(data_wts)
     cdef size_t i,j
     cdef CF* cf = cf_init()
@@ -313,42 +305,43 @@ def py_compute_cf(list data_cats,
     cdef DATA* dat = <DATA*> calloc(<unsigned int> n_catalogs, sizeof(DATA))
     for i in range(n_catalogs):
         data_init(dat + i)
-        npy_to_data(dat, data_cats[i], data_wts[i], i)
+        cat_dtype = data_cats[i].dtype
+        wt_dtype = data_wts[i].dtype
+        if cat_dtype == np.float64 and wt_dtype == np.float64:
+            npy_to_data(dat, data_cats[i], data_wts[i], i)
+        elif cat_dtype == np.float32 and wt_dtype == np.float32:
+            npy_to_data_f(dat, data_cats[i], data_wts[i], i)
+        else:
+            raise TypeError(f"Positions and weights must have the same dtype. Got {cat_dtype} and {wt_dtype}.")
     
 
-    # Define name of the configuration file to use
-    # TODO: Generate temporary configuration file at fixed location
-    #       from options passed to function. See i.e. 
-    #       https://github.com/dforero0896/fcfcwrap
-    # TODO: (Alternative/harder) override CONF structure
-    conf = f"--conf={fcfc_conf_file}"
-    conf_bytes = conf.encode('utf-8') + b'\x00'
-    cdef char* conf_string = conf_bytes
-
-    
-
-    # Define dummy argc, argv to send to powspec main function
-    # This should remain similar once we generate a conf file.
-    cdef int argc = 2
-    cdef char* argv[3]
+    cdef int argc = len(kwargs) + 1
+    cdef char** argv = process_kwargs_to_args(kwargs)
     argv[0] = arg0_str
-    argv[1] = conf_string
+    #argv[1] = conf_string
 
-    print(n_catalogs)
-    cf = compute_cf(argc, argv, dat)
-    if cf is NULL: raise ValueError("Could not compute correlations.")
-    cdef int idx = 0
+    cdef real* sedges_ptr = &sedges[0]
+    cdef int ns = len(sedges) - 1
 
+    cdef real* pedges_ptr = NULL
+    cdef int npi = 0
+
+    if pedges is not None:
+        pedges_ptr = &pedges[0]
+        npi = len(pedges) - 1
+    
+    
+    
+    cf = compute_cf(argc, argv, dat, sedges_ptr, ns, pedges_ptr, npi, nmu)
+    if cf is NULL: raise ValueError("C-extension failed, see message above.")
+    
     results = {}
     results['number'] = [cf.data[i].n for i in range(cf.ncat)]
     results['weighted_number'] = [cf.data[i].wt for i in range(cf.ncat)]
     results['normalization'] = [cf.norm[i] for i in range(cf.npc)]
-
-
-
-
     results['pairs'] = retrieve_paircounts(cf)
-    results['cf'] = retrieve_correlations(cf)
+    if cf.ncf > 0 :
+        results['cf'] = np.squeeze(retrieve_correlations(cf))
     results['s'] = np.empty(cf.ns)
     for i in range(cf.ns):
         results['s'][i] = 0.5 * (cf.sbin_raw[i] + cf.sbin_raw[i+1])
@@ -365,10 +358,14 @@ def py_compute_cf(list data_cats,
 
 
 
-    
-
-    
-
-
-    
-    
+cdef char** process_kwargs_to_args(dict kwargs):
+    str_args_list = []
+    cdef int argc = len(kwargs) + 1
+    cdef char** argv = <char**> malloc(sizeof(char*) * argc)
+    argv[0] = arg0_str
+    cdef char *c_string
+    for i, (key, val) in enumerate(kwargs.items()):
+        str_args_list.append(f"--{key.replace('_', '-')}={str(val)}".replace('\'', '').encode('utf-8') + b'\x00')
+        c_string = str_args_list[-1]
+        argv[i+1] = c_string
+    return argv

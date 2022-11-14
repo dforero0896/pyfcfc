@@ -124,7 +124,7 @@ Arguments:
 Return:
   Address of the structure for correlation function evaluations.
 ******************************************************************************/
-CF *cf_setup(const CONF *conf
+CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int np, int nmu
 #ifdef OMP
     , const PARA *para
 #endif
