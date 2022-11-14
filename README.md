@@ -4,42 +4,49 @@ This repository contains a python wrapper to the FCFC code to compute two-point 
 + SIMD instructions have been coded to `FCFC_SIMD  =  FCFC_SIMD_AVX512`
 + MPI capabilities have been left out (may be added in the future)
 + The python wrapper assumes there are always weights, which you may set up to be 1 if not needed.
-+ Due to the wrapper introducing in-memory data to FCFC, no extra data input flags are set (i.e. no FITS nor HDF5)
++ Due to the wrapper introducing in-memory data to FCFC, no extra data input flags are set (nor needed, i.e. no FITS nor HDF5)
 
-This being a thin wrapper, the code still needs configuration files (TODO: automatic creation of configuration files). The configuration files however do not require input-data information since all direct FCFC I/O is bypassed through python. This implies that there's also no data selection from the configuration file, it should be done through python. Furthermore, any input catalog must correspond to a catalog label in the configuration file.
+This wrapper now is now able to work **without configuration files**. When calling the functions, keyword arguments are passed to the C extension. 
+You can still use configuration files, however, they do not require input-data information since all direct FCFC I/O is bypassed through python. This implies that there's also no data selection from the configuration file, it should be done through python. Furthermore, any input catalog must correspond to a catalog label in the configuration file.
 
 ## Gotchas
 
-+ Input catalogs must, for now, be in `double` format. 
 + Make sure the number of input catalogs is equal to the number of catalog labels in the configuration file. (I did not add checks so any different leads to unexpected behavior).
 
 ## Interpreting results
-The results of using the wrapper are saved in a python `dict`. In all cases there are `cf`, `normalization`, `number`, `pairs`, `s` and `weighted_number` keys. Other keys depend on which correlation function is computed. Below some examples.
+The results of using the wrapper are saved in a python `dict`. In all cases there are `normalization`, `number`, `pairs`, `s` and `weighted_number` keys. Other keys depend on which correlation function is computed (if any). Below some examples.
 
-The value of the `cf` key is also a dict containing the keys `cf`, `smin`, `smax` and either `mumin`, `mumax` for multipoles, `pmin`, `pmax` for projected and nothing for isotropic. The `cf` subkey contains an array of size `(n_cf, n_s, n_p/mu)`. This is the raw correlation function which may be integrated into either projection. The `Xmin/Xmax` keys are arrays containing the edges of the bins corresponding to the `cf` subkey.
+The value of the `pairs` key is also a dict containing the keys `cf`, `smin`, `smax` and either `mumin`, `mumax` for multipoles, `pmin`, `pmax` for projected and nothing for isotropic. 
 
-The `pairs` key also contains a dictionary, which in turn contains also the `Xmin/Xmax` arrays found under `cf` and each of the pair counts that were computed labeled by the labels provided in the configuration file.
+The `pairs` key also contains a dictionary, which in turn contains also the `Xmin/Xmax` arrays: `smin`, `smax` and either `mumin`, `mumax` for multipoles, `pmin`, `pmax` for projected and nothing for isotropic. Moreover, it contains a key-value pair for each of the pair counts that were computed labeled by the labels provided.
 
-Below examples of small calculations.
+If a correlation function estimator is provided, the `cf` key contains an array of size `(n_cf, n_s, n_p/mu)`. This is the raw correlation function which may be integrated into either projection.
+
+See the `test` directory for some example calculations and configuration files. In a nutshell, the relevant function is
+```python
+py_compute_cf(data_cats, #Data catalogs
+              data_wts,  # Data weights
+              sedges, # s bin edges
+              pedges, # pi bin edges (only used if bin type = 2)
+              int nmu, # number of mu bins (only used if bin type = 1)
+              **kwargs # keyword arguments that override the conf. file. Following the syntax of command line options for FCFC
+                        # for example: pairs = ['DD', 'DR', 'RR']. For command line args with hyphens (-), replace them with underscore (_).
+                )
+```
 
 ### Multipoles of 2PCF
 
 When computing multipoles, the results contain a `multipoles` key which corresponds to an array of size `(n_pc, n_ell, n_s)`
 
 ```python
-{'cf': {'cf': array([[[18.95727695, 40.82757349],
+
+#returns something like
+{'cf': array([[[18.95727695, 40.82757349],
         [ 8.06542191, 15.86000714]],
 
        [[ 3.03672644, 42.12724307],
         [ 8.03875268, 15.89928789]]]),
-        'mumax': array([[0.5, 1. ],
-       [0.5, 1. ]]),
-        'mumin': array([[0. , 0.5],
-       [0. , 0.5]]),
-        'smax': array([[1., 1.],
-       [2., 2.]]),
-        'smin': array([[0., 0.],
-       [1., 1.]])},
+       
  'multipoles': <MemoryView of 'ndarray' at 0x14cb8fa96380>,
  'normalization': [302499450000.0,
                    302500000000.0,
@@ -75,19 +82,12 @@ When computing multipoles, the results contain a `multipoles` key which correspo
 ### Projected CF
 When computing multipoles, the results contain a `projected` key which corresponds to an array of size `(n_pc, n_s)`
 ```python
-{'cf': {'cf': array([[[24.80051005, 24.353297  ],
+{'cf': array([[[24.80051005, 24.353297  ],
         [ 7.92567097,  7.05509623]],
 
        [[ 3.14970962, 24.17714584],
         [ 7.89526819,  7.02678261]]]),
-        'pimax': array([[1., 2.],
-       [1., 2.]]),
-        'pimin': array([[0., 1.],
-       [0., 1.]]),
-        's_perp_max': array([[1., 1.],
-       [2., 2.]]),
-        's_perp_min': array([[0., 0.],
-       [1., 1.]])},
+        
  'normalization': [302499450000.0,
                    302500000000.0,
                    605000000000.0,
@@ -125,10 +125,8 @@ When computing multipoles, the results contain a `projected` key which correspon
 
 For isotropic CF there are no extra keys
 ```python
-{'cf': {'cf': array([[29.89242522, 11.96271453],
+{'cf': array([[29.89242522, 11.96271453],
        [ 3.12346988, 11.96813199]]),
-        'smax': array([1., 2.]),
-        'smin': array([0., 1.])},
  'normalization': [302499450000.0,
                    302500000000.0,
                    605000000000.0,
@@ -164,13 +162,30 @@ rand = 1000. * np.random.random((2 * nobj, 3)).astype(np.double)
 wran = np.ones(rand.shape[0])
 
 # Multipoles: Conf sets the CF type. BIN_TYPE = 1
-results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], "test/fcfc_box_ell.conf") 
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], 
+                        10**(np.linspace(-3, 2.2, 51)), # s edges can be non-linear
+                        None, # pi edges not used for multipoles
+                        100, # 100 mu bins
+                        conf = "test/fcfc_box_ell.conf", # conf file can still be used but is not mandatory (if all relevant kwargs are set)
+                        label = ['A', 'B', 'C', 'D']) # kwargs override configuration file
+                        
+## Alternatively, without a configuration file
+results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran], 
+                        10**(np.linspace(-3, 2.2, 51)), 
+                        None, 
+                        100, 
+                        label = ['A', 'B', 'C', 'D'], # Catalog labels matching the number of catalogs provided
+                        bin=1, # bin type for multipoles
+                        pair = ['AA', 'AB', 'AC', 'BD', 'BB', 'CD'], # Desired pair counts
+                        box=1000, 
+                        multipole = [0, 2, 4], # Multipoles to compute
+                        cf = ['AA / @@ - 1', '(AB - AC - BD + CD) / CD']) # CF estimator (not necessary if only pair counts are required)
 
 # Projected: Conf sets the CF type. BIN_TYPE = 2
-results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], "test/fcfc_box_wp.conf") 
+results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], conf = "test/fcfc_box_wp.conf") 
 
 # Isotropic: Conf sets the CF type. BIN_TYPE = 0
-results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], "test/fcfc_box_iso.conf") 
+results = py_compute_cf([np.c_[data, w], np.c_[data, w], np.c_[rand, wran], np.c_[rand, wran]], conf = "test/fcfc_box_iso.conf") 
 
 ```
 ### Survey-like data
@@ -192,13 +207,27 @@ wdat = 1. / (1 + P0 * data[:,3])
 wran = 1. / (1 + P0 * rand[:,3])
 
 # Multipoles: Conf sets the CF type. BIN_TYPE = 1
-results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], "test/fcfc_lc_ell.conf")
+results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], conf = "test/fcfc_lc_ell.conf")
+## Alternatively w/o configuration file
+results = py_compute_cf([data, rand], [wdat, wran], 
+                        np.arange(0, 200, 1, dtype=np.double), 
+                        None, 
+                        100, 
+                        label = ['D', 'R'], 
+                        omega_m = 0.31, # Cosmo params for coordinate conversion
+                        omega_l = 0.69, 
+                        eos_w = -1, 
+                        bin = 1, 
+                        pair = ['DD', 'DR', 'RR'], 
+                        cf = ['(DD - 2*DR + RR) / RR'], 
+                        multipole = [0,2,4], 
+                        convert = 'T') #Coordinate conversion
 
 # Projected: Conf sets the CF type. BIN_TYPE = 2
-results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], "test/fcfc_lc_wp.conf")
+results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], conf = "test/fcfc_lc_wp.conf")
 
 # Isotropic: Conf sets the CF type. BIN_TYPE = 0
-results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], "test/fcfc_lc_iso.conf")
+results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], conf = "test/fcfc_lc_iso.conf")
 
 ```
 
