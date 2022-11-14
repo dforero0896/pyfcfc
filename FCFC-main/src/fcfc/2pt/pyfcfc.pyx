@@ -176,7 +176,6 @@ cdef void npy_to_data(DATA* c_data,
         for i in range(3):
             c_data[data_id].x[i][j] = <real> npy_pos[j,i]
         c_data[data_id].w[j] = <real> npy_wt[j]
-<<<<<<< HEAD
 
 
 cdef void npy_to_data_f(DATA* c_data, 
@@ -195,8 +194,6 @@ cdef void npy_to_data_f(DATA* c_data,
             c_data[data_id].x[i][j] = <real> npy_pos[j,i]
         c_data[data_id].w[j] = <real> npy_wt[j]
 
-=======
->>>>>>> main
 
 
 cdef dict retrieve_paircounts(CF* cf):
@@ -294,19 +291,12 @@ cdef double[:,:] retrieve_projected(CF* cf):
     return results
 
 def py_compute_cf(list data_cats,
-<<<<<<< HEAD
                  list data_wts,
                  real[:] sedges,
                  real[:] pedges,
                  int nmu,
                  **kwargs
                 ):
-=======
-                  list data_wts,
-                  fcfc_conf_file,
-                ) :
-
->>>>>>> main
     assert len(data_cats) == len(data_wts)
     cdef size_t i,j
     cdef CF* cf = cf_init()
@@ -315,7 +305,6 @@ def py_compute_cf(list data_cats,
     cdef DATA* dat = <DATA*> calloc(<unsigned int> n_catalogs, sizeof(DATA))
     for i in range(n_catalogs):
         data_init(dat + i)
-<<<<<<< HEAD
         cat_dtype = data_cats[i].dtype
         wt_dtype = data_wts[i].dtype
         if cat_dtype == np.float64 and wt_dtype == np.float64:
@@ -324,9 +313,6 @@ def py_compute_cf(list data_cats,
             npy_to_data_f(dat, data_cats[i], data_wts[i], i)
         else:
             raise TypeError(f"Positions and weights must have the same dtype. Got {cat_dtype} and {wt_dtype}.")
-=======
-        npy_to_data(dat, data_cats[i], data_wts[i], i)
->>>>>>> main
     
 
     cdef int argc = len(kwargs) + 1

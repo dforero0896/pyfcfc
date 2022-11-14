@@ -2025,10 +2025,7 @@ static PyObject *indirect_contiguous = 0;
 static int __pyx_memoryview_thread_locks_used;
 static PyThread_type_lock __pyx_memoryview_thread_locks[8];
 static void __pyx_f_6pyfcfc_3sky_npy_to_data(DATA *, __Pyx_memviewslice, __Pyx_memviewslice, size_t); /*proto*/
-<<<<<<< HEAD
 static void __pyx_f_6pyfcfc_3sky_npy_to_data_f(DATA *, __Pyx_memviewslice, __Pyx_memviewslice, size_t); /*proto*/
-=======
->>>>>>> main
 static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *); /*proto*/
 static __Pyx_memviewslice __pyx_f_6pyfcfc_3sky_retrieve_correlations(CF *); /*proto*/
 static __Pyx_memviewslice __pyx_f_6pyfcfc_3sky_retrieve_multipoles(CF *); /*proto*/
