@@ -34,10 +34,13 @@ def add_pair_counts(results_a, results_b, repeat_missing = True):
     return results_a
 
 def compute_multipoles(correlation_function, poles):
-    from scipy.special import eval_legendre
+    from scipy.special import eval_legendre, legendre
     multipoles = np.empty((len(poles), correlation_function.shape[0]))
     nmu = correlation_function.shape[1]
-    mu = (np.arange(0., 1, nmu) + 0.5) / nmu
+    mu_edges = np.linspace(0., 1., nmu+1)
+    mu = mu_edges[:-1] + 0.5 * np.diff(mu_edges) 
+    
+
     leg_cache = np.empty(correlation_function.shape[1])
     for i, ell in enumerate(poles):
         fac = (2 * ell + 1) / nmu

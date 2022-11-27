@@ -1,0 +1,10 @@
+*.o
+*.so
+*.ls
+*.nat
+*.dd
+*.dr
+*.rr
+*.out
+*.log
+

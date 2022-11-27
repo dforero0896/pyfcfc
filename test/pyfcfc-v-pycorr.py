@@ -73,7 +73,7 @@ P0 = 1e4
 n_rand_splits = 20
 edges = np.arange(0, 201, 1, dtype=np.double), np.linspace(-1, 1, 101)
 nthreads = 256
-fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(10,5))
+fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(10,3))
 
 print("Loading randoms...", flush = True)
 randoms_list = [f"{RAND_ROOT}/cutsky_LRG_S{i}_{cap}.fits" for i in range(1000, 3000, 100)]
@@ -107,21 +107,21 @@ for i, (_shifted, _rand, _wshifted, _wrand) in enumerate(zip(*map(lambda x: np.a
     results = py_compute_cf([data, _rand, _shifted], 
                             [wdata, _wrand, _wshifted], 
                             edges[0], None, edges[1].shape[0], 
-                            label = ['D', 'R', 'S'] if i == 0 else ['D', 'S'], 
+                            label = ['D', 'R', 'S'],
                             omega_m = (0.02237 + 0.1200) / h**2, 
                             #omega_l = 0.69, 
                             eos_w = -1, 
                             bin = 1, 
-                            pair = ['DD', 'RR', 'DS', 'SS'] if i == 0 else ['DS', 'SS'], 
+                            pair = ['DD', 'RR', 'DS', 'SS'] if i == 0 else ['DS', 'SS', 'RR'], 
                             cf = ['DS'], 
                             multipole = [0,2,4], 
                             convert = 'T',
                             data_struct = 0,
                             verbose = 'F')
     
-    #total_results = add_pair_counts(total_results, results) if i > 0 else results
-    total_results = results
-    break
+    total_results = add_pair_counts(total_results, results) if i > 0 else results
+    
+    
     
     print(f"pyfcfc single split {time.time() - s_}s", flush=True)
 print(f"pyfcfc all splits {time.time() - s}s", flush=True)
@@ -150,6 +150,7 @@ split_wshifted = np.array_split(wshifted, n_rand_splits)
 D1D2 = None
 R1R2 = None
 s = time.time()
+result = 0
 for i in range(n_rand_splits):
     _shifted = list(split_shifted[j][i] for j in range(3))
     _wshifted = split_wshifted[i]
@@ -158,7 +159,7 @@ for i in range(n_rand_splits):
     print(f"Shifted shape = {_shifted[0].shape[0] / data[0].shape[0]}x")
     print(f"Rand shape = {_rand[0].shape[0] / data[0].shape[0]}x")
     s_ = time.time()
-    result = TwoPointCorrelationFunction('smu', edges, data_positions1=data, data_weights1=wdata,
+    result += TwoPointCorrelationFunction('smu', edges, data_positions1=data, data_weights1=wdata,
                             data_positions2=None, data_weights2=None,
                             randoms_positions1=_rand, randoms_weights1=_wrand,
                             randoms_positions2=None, randoms_weights2=None,
@@ -168,13 +169,12 @@ for i in range(n_rand_splits):
                             position_type = 'rdd',
                             los = 'firstpoint',
                             D1D2 = D1D2,
-                            R1R2 = R1R2
                             #estimator = 'landyszalay'
                             )
     print(f"pycorr single split {time.time() - s_}s", flush=True)
     D1D2 = result.D1D2
-    R1R2 = result.R1R2
-    break
+    
+    
 print(f"pycorr all splits {time.time() - s}s", flush=True)
 
  
