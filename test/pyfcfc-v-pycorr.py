@@ -5,10 +5,10 @@ import numpy as np
 import sys, os
 sys.path.append("/global/homes/d/dforero/codes/pyfcfc/")
 from pyfcfc.sky import py_compute_cf
-from pyfcfc.utils import add_pair_counts, compute_multipoles
+from pyfcfc.utils import add_pair_counts, compute_multipoles, pairs_to_pycorr
 import pandas as pd
 import time
-from pycorr import TwoPointCorrelationFunction, setup_logging
+from pycorr import TwoPointCorrelationFunction, setup_logging, TwoPointCounter
 from astropy.table import Table, vstack
 from pyrecon import IterativeFFTReconstruction, MultiGridReconstruction, utils
 from cosmoprimo.fiducial import DESI
@@ -71,9 +71,9 @@ zmin, zmax = 0.8, 1.1
 f = 0.830
 P0 = 1e4
 n_rand_splits = 20
-edges = np.arange(0, 201, 1, dtype=np.double), np.linspace(-1, 1, 101)
+edges = np.arange(0, 201, 1, dtype=np.double), np.linspace(-1, 1, 201)
 nthreads = 256
-fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(10,3))
+fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15,5))
 
 print("Loading randoms...", flush = True)
 randoms_list = [f"{RAND_ROOT}/cutsky_LRG_S{i}_{cap}.fits" for i in range(1000, 3000, 100)]
@@ -93,7 +93,6 @@ output_cf_sym = f"{output_base}/sym_tpcf.pkl.npy"
 
 
 
-
 data = np.load(output_dat)
 wdata = (1. / (data[:,3] * P0 + 1)).astype(np.float32)
 shifted = np.load(output_sym)
@@ -106,7 +105,7 @@ for i, (_shifted, _rand, _wshifted, _wrand) in enumerate(zip(*map(lambda x: np.a
     s_ = time.time()
     results = py_compute_cf([data, _rand, _shifted], 
                             [wdata, _wrand, _wshifted], 
-                            edges[0], None, edges[1].shape[0], 
+                            edges[0], None, (edges[1].shape[0] - 1) // 2, 
                             label = ['D', 'R', 'S'],
                             omega_m = (0.02237 + 0.1200) / h**2, 
                             #omega_l = 0.69, 
@@ -120,19 +119,33 @@ for i, (_shifted, _rand, _wshifted, _wrand) in enumerate(zip(*map(lambda x: np.a
                             verbose = 'F')
     
     total_results = add_pair_counts(total_results, results) if i > 0 else results
-    
-    
-    
     print(f"pyfcfc single split {time.time() - s_}s", flush=True)
+
+    
 print(f"pyfcfc all splits {time.time() - s}s", flush=True)
+pycorr_states = pairs_to_pycorr(total_results, 'landyszalay', dict(DD = "D1D2", RR = "R1R2", DS = ("D1S2", "S1D2"), SS = "S1S2"))
+np.save("test/DD_pycorr_state.pkl.npy", pycorr_states)
+result = TwoPointCorrelationFunction.load("test/DD_pycorr_state.pkl.npy")
+result2 = result[::2,::4]
+print('Initially {:d} sep, {:d} mu.'.format(*result.shape))
+print('After rebinning {:d} sep, {:d} mu.'.format(*result2.shape))
 total_results['cf'] = (total_results['pairs']['DD'] - 2 * total_results['pairs']['DS'] + total_results['pairs']['SS']) / total_results['pairs']['RR']
 total_results['multipoles'] = compute_multipoles(total_results['cf'], [0,2,4])
 for i in range(3):
-    ax[i].plot(total_results['s'], total_results['s']**2*total_results['multipoles'][i,:])
+    ax[i].plot(total_results['s'], total_results['s']**2*total_results['multipoles'][i,:], label = "pyFCFC integrated")
     ax[i].set_xlabel("$s$ [Mpc/$h$]")
     ax[i].set_ylabel(r"$s^2\xi$")
     ax[i].set_title(f"$\ell = {2*i}$")
 fig.savefig("test/pyfcfc-v-pycorr.png", dpi=300)
+
+for ill, ell in enumerate([2 * i for i in range(3)]):
+    s, corr = result(ell=ell, return_sep=True)
+    ax[ill].plot(s, s**2 * corr, label="pyFCFC save, pycorr load")
+
+    s, corr = result2(ell=ell, return_sep=True)
+    ax[ill].plot(s, s**2 * corr, label="pyFCFC save, pycorr load & rebin")
+fig.savefig("test/pyfcfc-v-pycorr.png", dpi=300)
+
 
 rand = rand['RA'].values, rand['DEC'].values, cosmo.comoving_radial_distance(rand['Z'].values)
 split_rand = tuple(map(lambda x: np.array_split(x, n_rand_splits), rand))
@@ -174,13 +187,20 @@ for i in range(n_rand_splits):
     print(f"pycorr single split {time.time() - s_}s", flush=True)
     D1D2 = result.D1D2
     
-    
-print(f"pycorr all splits {time.time() - s}s", flush=True)
 
- 
+result.save("test/pycorr_2pcf.pkl.npy")
+result_ = np.load("test/pycorr_2pcf.pkl.npy", allow_pickle=True).item()
+
+print(f"pycorr all splits {time.time() - s}s", flush=True)
+result = TwoPointCorrelationFunction.load("test/pycorr_2pcf.pkl.npy")
+result2 = result[::2,::2]
+print('Initially {:d} sep, {:d} mu.'.format(*result.shape))
+print('After rebinning {:d} sep, {:d} mu.'.format(*result2.shape))
 
 for ill, ell in enumerate([2 * i for i in range(3)]):
     s, corr = result(ell=ell, return_sep=True)
-    ax[ill].plot(s, s**2 * corr, label=r'$\ell = {:d}$'.format(ell))
-
+    ax[ill].plot(s, s**2 * corr, label='pycorr computed')
+ax[2].legend(loc='best')
+fig.tight_layout()
 fig.savefig("test/pyfcfc-v-pycorr.png", dpi=300)
+

@@ -2199,8 +2199,6 @@ static const char __pyx_k_pedges_ptr[] = "pedges_ptr";
 static const char __pyx_k_pyfcfc_sky[] = "pyfcfc.sky";
 static const char __pyx_k_pyx_result[] = "__pyx_result";
 static const char __pyx_k_pyx_vtable[] = "__pyx_vtable__";
-static const char __pyx_k_s_perp_max[] = "s_perp_max";
-static const char __pyx_k_s_perp_min[] = "s_perp_min";
 static const char __pyx_k_sedges_ptr[] = "sedges_ptr";
 static const char __pyx_k_MemoryError[] = "MemoryError";
 static const char __pyx_k_PickleError[] = "PickleError";
@@ -2374,8 +2372,6 @@ static PyObject *__pyx_n_s_reduce_ex;
 static PyObject *__pyx_n_s_replace;
 static PyObject *__pyx_n_s_results;
 static PyObject *__pyx_n_u_s;
-static PyObject *__pyx_n_u_s_perp_max;
-static PyObject *__pyx_n_u_s_perp_min;
 static PyObject *__pyx_n_s_scipy_special;
 static PyObject *__pyx_n_s_sedges;
 static PyObject *__pyx_n_s_sedges_ptr;
@@ -3487,7 +3483,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
  *                 for i in range(cf.ns):
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]             # <<<<<<<<<<<<<<
  *     elif cf.wp is not NULL:
- *         result['s_perp_min'] = np.empty((cf.ns, cf.np))
+ *         result['smin'] = np.empty((cf.ns, cf.np))
  */
           __pyx_t_4 = __Pyx_PyInt_From_int(__pyx_v_cf->ns); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 275, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_4);
@@ -3551,8 +3547,8 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
  *                 for i in range(cf.ns):
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
  *     elif cf.wp is not NULL:             # <<<<<<<<<<<<<<
- *         result['s_perp_min'] = np.empty((cf.ns, cf.np))
- *         result['s_perp_max'] = np.copy(result['s_perp_min'])
+ *         result['smin'] = np.empty((cf.ns, cf.np))
+ *         result['smax'] = np.copy(result['smin'])
  */
   __pyx_t_2 = ((__pyx_v_cf->wp != NULL) != 0);
   if (__pyx_t_2) {
@@ -3560,8 +3556,8 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
     /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":277
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
  *     elif cf.wp is not NULL:
- *         result['s_perp_min'] = np.empty((cf.ns, cf.np))             # <<<<<<<<<<<<<<
- *         result['s_perp_max'] = np.copy(result['s_perp_min'])
+ *         result['smin'] = np.empty((cf.ns, cf.np))             # <<<<<<<<<<<<<<
+ *         result['smax'] = np.copy(result['smin'])
  * 
  */
     __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 277, __pyx_L1_error)
@@ -3597,22 +3593,22 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
     if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 277, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(PyDict_SetItem(__pyx_v_result, __pyx_n_u_s_perp_min, __pyx_t_5) < 0)) __PYX_ERR(0, 277, __pyx_L1_error)
+    if (unlikely(PyDict_SetItem(__pyx_v_result, __pyx_n_u_smin, __pyx_t_5) < 0)) __PYX_ERR(0, 277, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
     /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":278
  *     elif cf.wp is not NULL:
- *         result['s_perp_min'] = np.empty((cf.ns, cf.np))
- *         result['s_perp_max'] = np.copy(result['s_perp_min'])             # <<<<<<<<<<<<<<
+ *         result['smin'] = np.empty((cf.ns, cf.np))
+ *         result['smax'] = np.copy(result['smin'])             # <<<<<<<<<<<<<<
  * 
- *         result['pimin'] = np.copy(result['s_perp_min'])
+ *         result['pimin'] = np.copy(result['smin'])
  */
     __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_n_s_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 278, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_copy); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 278, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_4 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_s_perp_min); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 278, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_smin); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 278, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_3 = NULL;
     if (CYTHON_UNPACK_METHODS && unlikely(PyMethod_Check(__pyx_t_6))) {
@@ -3630,14 +3626,14 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
     if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 278, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    if (unlikely(PyDict_SetItem(__pyx_v_result, __pyx_n_u_s_perp_max, __pyx_t_5) < 0)) __PYX_ERR(0, 278, __pyx_L1_error)
+    if (unlikely(PyDict_SetItem(__pyx_v_result, __pyx_n_u_smax, __pyx_t_5) < 0)) __PYX_ERR(0, 278, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
     /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":280
- *         result['s_perp_max'] = np.copy(result['s_perp_min'])
+ *         result['smax'] = np.copy(result['smin'])
  * 
- *         result['pimin'] = np.copy(result['s_perp_min'])             # <<<<<<<<<<<<<<
- *         result['pimax'] = np.copy(result['s_perp_min'])
+ *         result['pimin'] = np.copy(result['smin'])             # <<<<<<<<<<<<<<
+ *         result['pimax'] = np.copy(result['smin'])
  *         for j in range(cf.np):
  */
     __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 280, __pyx_L1_error)
@@ -3645,7 +3641,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
     __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_copy); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 280, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_6 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_s_perp_min); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 280, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_smin); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 280, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __pyx_t_3 = NULL;
     if (CYTHON_UNPACK_METHODS && unlikely(PyMethod_Check(__pyx_t_4))) {
@@ -3668,8 +3664,8 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
 
     /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":281
  * 
- *         result['pimin'] = np.copy(result['s_perp_min'])
- *         result['pimax'] = np.copy(result['s_perp_min'])             # <<<<<<<<<<<<<<
+ *         result['pimin'] = np.copy(result['smin'])
+ *         result['pimax'] = np.copy(result['smin'])             # <<<<<<<<<<<<<<
  *         for j in range(cf.np):
  *             for i in range(cf.ns):
  */
@@ -3678,7 +3674,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
     __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_copy); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 281, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_4 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_s_perp_min); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 281, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_smin); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 281, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_3 = NULL;
     if (CYTHON_UNPACK_METHODS && unlikely(PyMethod_Check(__pyx_t_6))) {
@@ -3700,11 +3696,11 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
     /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":282
- *         result['pimin'] = np.copy(result['s_perp_min'])
- *         result['pimax'] = np.copy(result['s_perp_min'])
+ *         result['pimin'] = np.copy(result['smin'])
+ *         result['pimax'] = np.copy(result['smin'])
  *         for j in range(cf.np):             # <<<<<<<<<<<<<<
  *             for i in range(cf.ns):
- *                 result['s_perp_min'][i,j] = cf.sbin_raw[i]
+ *                 result['smin'][i,j] = cf.sbin_raw[i]
  */
     __pyx_t_5 = __Pyx_PyInt_From_int(__pyx_v_cf->np); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 282, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
@@ -3755,11 +3751,11 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
       __pyx_t_6 = 0;
 
       /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":283
- *         result['pimax'] = np.copy(result['s_perp_min'])
+ *         result['pimax'] = np.copy(result['smin'])
  *         for j in range(cf.np):
  *             for i in range(cf.ns):             # <<<<<<<<<<<<<<
- *                 result['s_perp_min'][i,j] = cf.sbin_raw[i]
- *                 result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+ *                 result['smin'][i,j] = cf.sbin_raw[i]
+ *                 result['smax'][i,j] = cf.sbin_raw[i+1]
  */
       __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_cf->ns); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 283, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
@@ -3812,14 +3808,14 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
         /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":284
  *         for j in range(cf.np):
  *             for i in range(cf.ns):
- *                 result['s_perp_min'][i,j] = cf.sbin_raw[i]             # <<<<<<<<<<<<<<
- *                 result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+ *                 result['smin'][i,j] = cf.sbin_raw[i]             # <<<<<<<<<<<<<<
+ *                 result['smax'][i,j] = cf.sbin_raw[i+1]
  *                 result['pimin'][i,j] = cf.pbin_raw[j]
  */
         __pyx_t_11 = __Pyx_PyIndex_AsSsize_t(__pyx_v_i); if (unlikely((__pyx_t_11 == (Py_ssize_t)-1) && PyErr_Occurred())) __PYX_ERR(0, 284, __pyx_L1_error)
         __pyx_t_4 = PyFloat_FromDouble((__pyx_v_cf->sbin_raw[__pyx_t_11])); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 284, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_4);
-        __pyx_t_3 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_s_perp_min); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 284, __pyx_L1_error)
+        __pyx_t_3 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_smin); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 284, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
         __pyx_t_1 = PyTuple_New(2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 284, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
@@ -3836,8 +3832,8 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
 
         /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":285
  *             for i in range(cf.ns):
- *                 result['s_perp_min'][i,j] = cf.sbin_raw[i]
- *                 result['s_perp_max'][i,j] = cf.sbin_raw[i+1]             # <<<<<<<<<<<<<<
+ *                 result['smin'][i,j] = cf.sbin_raw[i]
+ *                 result['smax'][i,j] = cf.sbin_raw[i+1]             # <<<<<<<<<<<<<<
  *                 result['pimin'][i,j] = cf.pbin_raw[j]
  *                 result['pimax'][i,j] = cf.pbin_raw[j+1]
  */
@@ -3847,7 +3843,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
         __pyx_t_4 = PyFloat_FromDouble((__pyx_v_cf->sbin_raw[__pyx_t_11])); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 285, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_4);
-        __pyx_t_1 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_s_perp_max); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 285, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_smax); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 285, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
         __pyx_t_3 = PyTuple_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 285, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
@@ -3863,8 +3859,8 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
         /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":286
- *                 result['s_perp_min'][i,j] = cf.sbin_raw[i]
- *                 result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+ *                 result['smin'][i,j] = cf.sbin_raw[i]
+ *                 result['smax'][i,j] = cf.sbin_raw[i+1]
  *                 result['pimin'][i,j] = cf.pbin_raw[j]             # <<<<<<<<<<<<<<
  *                 result['pimax'][i,j] = cf.pbin_raw[j+1]
  * 
@@ -3888,7 +3884,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
         /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":287
- *                 result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+ *                 result['smax'][i,j] = cf.sbin_raw[i+1]
  *                 result['pimin'][i,j] = cf.pbin_raw[j]
  *                 result['pimax'][i,j] = cf.pbin_raw[j+1]             # <<<<<<<<<<<<<<
  * 
@@ -3916,21 +3912,21 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
         /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":283
- *         result['pimax'] = np.copy(result['s_perp_min'])
+ *         result['pimax'] = np.copy(result['smin'])
  *         for j in range(cf.np):
  *             for i in range(cf.ns):             # <<<<<<<<<<<<<<
- *                 result['s_perp_min'][i,j] = cf.sbin_raw[i]
- *                 result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+ *                 result['smin'][i,j] = cf.sbin_raw[i]
+ *                 result['smax'][i,j] = cf.sbin_raw[i+1]
  */
       }
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
       /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":282
- *         result['pimin'] = np.copy(result['s_perp_min'])
- *         result['pimax'] = np.copy(result['s_perp_min'])
+ *         result['pimin'] = np.copy(result['smin'])
+ *         result['pimax'] = np.copy(result['smin'])
  *         for j in range(cf.np):             # <<<<<<<<<<<<<<
  *             for i in range(cf.ns):
- *                 result['s_perp_min'][i,j] = cf.sbin_raw[i]
+ *                 result['smin'][i,j] = cf.sbin_raw[i]
  */
     }
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
@@ -3940,7 +3936,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
  * 
  *         for idx in range(cf.npc):             # <<<<<<<<<<<<<<
  *             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
- *             result[pcnt_label] = np.copy(result['s_perp_min'])
+ *             result[pcnt_label] = np.copy(result['smin'])
  */
     __pyx_t_12 = __pyx_v_cf->npc;
     __pyx_t_13 = __pyx_t_12;
@@ -3951,7 +3947,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
  * 
  *         for idx in range(cf.npc):
  *             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')             # <<<<<<<<<<<<<<
- *             result[pcnt_label] = np.copy(result['s_perp_min'])
+ *             result[pcnt_label] = np.copy(result['smin'])
  *             for j in range(cf.np):
  */
       if (((__pyx_v_cf->label[((__pyx_v_cf->pc_idx[0])[__pyx_v_idx])]) < 0) || ((__pyx_v_cf->label[((__pyx_v_cf->pc_idx[0])[__pyx_v_idx])]) > 255)) {
@@ -4012,7 +4008,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
       /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":291
  *         for idx in range(cf.npc):
  *             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
- *             result[pcnt_label] = np.copy(result['s_perp_min'])             # <<<<<<<<<<<<<<
+ *             result[pcnt_label] = np.copy(result['smin'])             # <<<<<<<<<<<<<<
  *             for j in range(cf.np):
  *                 for i in range(cf.ns):
  */
@@ -4021,7 +4017,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
       __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_copy); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 291, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __pyx_t_4 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_s_perp_min); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 291, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_PyDict_GetItem(__pyx_v_result, __pyx_n_u_smin); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 291, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __pyx_t_6 = NULL;
       if (CYTHON_UNPACK_METHODS && unlikely(PyMethod_Check(__pyx_t_5))) {
@@ -4044,7 +4040,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
 
       /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":292
  *             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
- *             result[pcnt_label] = np.copy(result['s_perp_min'])
+ *             result[pcnt_label] = np.copy(result['smin'])
  *             for j in range(cf.np):             # <<<<<<<<<<<<<<
  *                 for i in range(cf.ns):
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
@@ -4098,7 +4094,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
         __pyx_t_5 = 0;
 
         /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":293
- *             result[pcnt_label] = np.copy(result['s_perp_min'])
+ *             result[pcnt_label] = np.copy(result['smin'])
  *             for j in range(cf.np):
  *                 for i in range(cf.ns):             # <<<<<<<<<<<<<<
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
@@ -4187,7 +4183,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
           /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":293
- *             result[pcnt_label] = np.copy(result['s_perp_min'])
+ *             result[pcnt_label] = np.copy(result['smin'])
  *             for j in range(cf.np):
  *                 for i in range(cf.ns):             # <<<<<<<<<<<<<<
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
@@ -4198,7 +4194,7 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
 
         /* "FCFC-main/src/fcfc/2pt/pyfcfc.pyx":292
  *             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
- *             result[pcnt_label] = np.copy(result['s_perp_min'])
+ *             result[pcnt_label] = np.copy(result['smin'])
  *             for j in range(cf.np):             # <<<<<<<<<<<<<<
  *                 for i in range(cf.ns):
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
@@ -4211,8 +4207,8 @@ static PyObject *__pyx_f_6pyfcfc_3sky_retrieve_paircounts(CF *__pyx_v_cf) {
  *                 for i in range(cf.ns):
  *                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
  *     elif cf.wp is not NULL:             # <<<<<<<<<<<<<<
- *         result['s_perp_min'] = np.empty((cf.ns, cf.np))
- *         result['s_perp_max'] = np.copy(result['s_perp_min'])
+ *         result['smin'] = np.empty((cf.ns, cf.np))
+ *         result['smax'] = np.copy(result['smin'])
  */
     goto __pyx_L3;
   }
@@ -21063,8 +21059,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_replace, __pyx_k_replace, sizeof(__pyx_k_replace), 0, 0, 1, 1},
   {&__pyx_n_s_results, __pyx_k_results, sizeof(__pyx_k_results), 0, 0, 1, 1},
   {&__pyx_n_u_s, __pyx_k_s, sizeof(__pyx_k_s), 0, 1, 0, 1},
-  {&__pyx_n_u_s_perp_max, __pyx_k_s_perp_max, sizeof(__pyx_k_s_perp_max), 0, 1, 0, 1},
-  {&__pyx_n_u_s_perp_min, __pyx_k_s_perp_min, sizeof(__pyx_k_s_perp_min), 0, 1, 0, 1},
   {&__pyx_n_s_scipy_special, __pyx_k_scipy_special, sizeof(__pyx_k_scipy_special), 0, 0, 1, 1},
   {&__pyx_n_s_sedges, __pyx_k_sedges, sizeof(__pyx_k_sedges), 0, 0, 1, 1},
   {&__pyx_n_s_sedges_ptr, __pyx_k_sedges_ptr, sizeof(__pyx_k_sedges_ptr), 0, 0, 1, 1},

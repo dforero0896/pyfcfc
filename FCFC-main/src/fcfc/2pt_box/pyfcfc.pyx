@@ -264,21 +264,21 @@ cdef dict retrieve_paircounts(CF* cf):
                 for i in range(cf.ns):
                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
     elif cf.wp is not NULL:
-        result['s_perp_min'] = np.empty((cf.ns, cf.np))
-        result['s_perp_max'] = np.copy(result['s_perp_min'])
+        result['smin'] = np.empty((cf.ns, cf.np))
+        result['smax'] = np.copy(result['smin'])
         
-        result['pimin'] = np.copy(result['s_perp_min'])
-        result['pimax'] = np.copy(result['s_perp_min'])
+        result['pimin'] = np.copy(result['smin'])
+        result['pimax'] = np.copy(result['smin'])
         for j in range(cf.np):
             for i in range(cf.ns):
-                result['s_perp_min'][i,j] = cf.sbin_raw[i]
-                result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+                result['smin'][i,j] = cf.sbin_raw[i]
+                result['smax'][i,j] = cf.sbin_raw[i+1]
                 result['pimin'][i,j] = cf.pbin_raw[j]
                 result['pimax'][i,j] = cf.pbin_raw[j+1]
 
         for idx in range(cf.npc):
             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
-            result[pcnt_label] = np.copy(result['s_perp_min'])
+            result[pcnt_label] = np.copy(result['smin'])
             for j in range(cf.np):
                 for i in range(cf.ns):
                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
