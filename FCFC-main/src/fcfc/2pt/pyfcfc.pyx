@@ -391,9 +391,18 @@ def py_compute_cf(list data_cats,
     if cf is NULL: raise ValueError("C-extension failed, see message above.")
     
     results = {}
-    results['number'] = [cf.data[i].n for i in range(cf.ncat)]
-    results['weighted_number'] = [cf.data[i].wt for i in range(cf.ncat)]
-    results['normalization'] = [cf.norm[i] for i in range(cf.npc)]
+    results['number'] = {}
+    results['weighted_number'] = {}
+    results['labels'] = []
+    for i in range(cf.ncat):
+        label = (<bytes> cf.label[i]).decode('utf-8')
+        results['number'][label] = cf.data[i].n
+        results['weighted_number'][label] = cf.data[i].n
+        results['labels'].append(label)
+    results['normalization'] = {}
+    for i in range(cf.npc):
+        pcnt_label = (<bytes> cf.label[cf.pc_idx[0][i]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][i]]).decode('utf-8')
+        results['normalization'][pcnt_label] = cf.norm[i]
     results['pairs'] = retrieve_paircounts(cf)
     if cf.ncf > 0 :
         results['cf'] = np.squeeze(retrieve_correlations(cf))
