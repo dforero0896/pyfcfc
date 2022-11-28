@@ -7,4 +7,4 @@
 *.rr
 *.out
 *.log
-
+*.pyc
