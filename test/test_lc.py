@@ -5,10 +5,10 @@ import numpy as np
 import sys
 sys.path.append("/global/homes/d/dforero/codes/pyfcfc/")
 from pyfcfc.sky import py_compute_cf
-
-
-
 import pandas as pd
+import time
+
+
 P0 = 5000
 dat_fname = "/global/cfs/projectdirs/desi/mocks/UNIT/HOD_Shadab/multiple_snapshot_lightcone/UNIT_lightcone_multibox_ELG_footprint_nz_NGC.dat"
 ran_fname = "/global/cfs/projectdirs/desi/mocks/UNIT/HOD_Shadab/multiple_snapshot_lightcone/UNIT_lightcone_multibox_ELG_footprint_nz_1xdata_5.ran_NGC.dat"
@@ -29,9 +29,11 @@ assert wdat.shape[0] > 1
 
 
 fig, ax = pplt.subplots(nrows=2, ncols=2, share=0)
-
+s = time.time()
 #results = py_compute_cf([data, rand], [wdat, wran], np.arange(0, 200, 1, dtype=np.double), None, 100, conf = "test/fcfc_lc_ell.conf")
 results = py_compute_cf([data, rand], [wdat, wran], np.arange(0, 200, 1, dtype=np.double), None, 100, label = ['D', 'R'], omega_m = 0.31, omega_l = 0.69, eos_w = -1, bin = 1, pair = ['DD', 'DR', 'RR'], cf = ['(DD - 2*DR + RR) / RR'], multipole = [0,2,4], convert = 'T')
+print(f"Par counting takes {time.time() - s}s", flush=True)
+
 for j in range(results['multipoles'].shape[0]):
     for i in range(3):
         ax[i].plot(results['s'], results['s']**2*results['multipoles'][j,i,:])

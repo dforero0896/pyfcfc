@@ -76,60 +76,115 @@ cdef extern from "eval_cf.h":
         real *x[3];   # coordinates               
         real *w;              # weights                   
         double wt;            # weighted number of objects
+    IF WITH_SIMD == 1:
+        ctypedef struct CF:
+            int bintype;          # binning scheme: iso, smu, or spi               */
+            real *s2bin;          # edges of squared separation (or s_perp) bins   */
+            real *p2bin;          # edges of squared pi bins                               */
+            void *stab;           # lookup table for separation (or s_perp) bins   */
+            void *ptab;           # lookup table for pi bins                       */
+            uint8_t *mutab;       # lookup table for mu bins                       */
+            int swidth;           # separation (or s_perp) lookup table entry size */
+            int pwidth;           # pi lookup table entry size                     */
+            int tabtype;          # type of the lookup tables (integer vs. hybrid) */
+            int ns;               # number of separation (or s_perp) bins          */
+            int np;               # number of pi bins                              */
+            int nmu;              # number of mu bins                              */
+            #if FCFC_SIMD  <  FCFC_SIMD_AVX512
+            COUNT *pcnt;          # thread-private array for counting in parallel  */
+            #else
+            #void *pcnt;           # vector-private array for counting in parallel  */
+            #endif
+            int treetype;         # type of the tree structure.                    *
+            int ncat;             #/* number of catalogues to be read                */
+            const char *label;    #/* labels of the input catalogues                 */
+            DATA *data;           #/* structures for the input catalogues            */
+            real rescale;         #/* rescaling factor for the input coordinates     */
+            real *sbin_raw;       #/* unrescaled separation (or s_perp) bin edges    */
+            real *pbin_raw;       #/* unrescaled pi bin edges                        */
+            int nthread;          #/* number of OpenMP threads                       */
+            size_t ntot;          #/* total number of bins                           */
+            real *sbin;           #/* edges of separation (or s_perp) bins           */
+            real *pbin;           #/* edges of separation (or s_perp) bins           */
+            int verbose;          #/* indicate whether to show detailed outputs      */
+            int npc;              #/* number of pair counts to be evaluated          */
+            int *pc_idx[2];       #/* pairs to be counted, defined as input indices  */
+            #ifdef MPI
+            #bint *comp_pc;        #/* indicate whether to evaluate the pair counts   */
+            #else#
+            const bint *comp_pc;  #/* indicate whether to evaluate the pair counts   */
+            #endif#
+            bint *wt;             #/* indicate whether using weights for pair counts */
+            bint *cat_wt;         #/* indicate whether using weights in catalogues   */
+            const bint *cnvt;     #/* indicate whether to run coordinate conversion  */
+            COORD_CNVT *coord;    #/* structure for coordinate interpolation         */
+            COUNT **cnt;          #/* array for storing evaluated pair counts        */
+            double *norm;         #/* normalisation factors for pair counts          */
+            double **ncnt;        #/* array for normalised pair counts               */
+            int ncf;              #/* number of correlation functions to be computed */
+            char **cf_exp;        #/* expression for correlation function estimators */
+            ast_t **ast_cf;       #/* abstract syntax trees for 2PCF estimators      */
+            double **cf;          #/* array for storing correlation functions        */
+            int nl;               #/* number of multipoles to be evaluated           */
+            const int *poles;     #/* orders of Legendre polynomials to be evaluated */
+            double **mp;          #/* array for storing 2PCF multipoles              */
+            bint comp_wp;         #/* indicate whether to compute projected 2PCF     */
+            double **wp;          #/* array for storing projected 2PCFs              */
+    ELSE:
+        ctypedef struct CF:
+            int bintype;          # binning scheme: iso, smu, or spi               */
+            real *s2bin;          # edges of squared separation (or s_perp) bins   */
+            real *p2bin;          # edges of squared pi bins                               */
+            void *stab;           # lookup table for separation (or s_perp) bins   */
+            void *ptab;           # lookup table for pi bins                       */
+            uint8_t *mutab;       # lookup table for mu bins                       */
+            int swidth;           # separation (or s_perp) lookup table entry size */
+            int pwidth;           # pi lookup table entry size                     */
+            int tabtype;          # type of the lookup tables (integer vs. hybrid) */
+            int ns;               # number of separation (or s_perp) bins          */
+            int np;               # number of pi bins                              */
+            int nmu;              # number of mu bins                              */
+            #if FCFC_SIMD  <  FCFC_SIMD_AVX512
+            COUNT *pcnt;          # thread-private array for counting in parallel  */
+            #else
+            #void *pcnt;           # vector-private array for counting in parallel  */
+            #endif
+            int treetype;         # type of the tree structure.                    *
+            int ncat;             #/* number of catalogues to be read                */
+            const char *label;    #/* labels of the input catalogues                 */
+            DATA *data;           #/* structures for the input catalogues            */
+            real rescale;         #/* rescaling factor for the input coordinates     */
+            real *sbin_raw;       #/* unrescaled separation (or s_perp) bin edges    */
+            real *pbin_raw;       #/* unrescaled pi bin edges                        */
+            int nthread;          #/* number of OpenMP threads                       */
+            size_t ntot;          #/* total number of bins                           */
+            real *sbin;           #/* edges of separation (or s_perp) bins           */
+            real *pbin;           #/* edges of separation (or s_perp) bins           */
+            int verbose;          #/* indicate whether to show detailed outputs      */
+            int npc;              #/* number of pair counts to be evaluated          */
+            int *pc_idx[2];       #/* pairs to be counted, defined as input indices  */
+            #ifdef MPI
+            #bint *comp_pc;        #/* indicate whether to evaluate the pair counts   */
+            #else#
+            const bint *comp_pc;  #/* indicate whether to evaluate the pair counts   */
+            #endif#
+            bint *wt;             #/* indicate whether using weights for pair counts */
+            bint *cat_wt;         #/* indicate whether using weights in catalogues   */
+            const bint *cnvt;     #/* indicate whether to run coordinate conversion  */
+            COORD_CNVT *coord;    #/* structure for coordinate interpolation         */
+            COUNT **cnt;          #/* array for storing evaluated pair counts        */
+            double *norm;         #/* normalisation factors for pair counts          */
+            double **ncnt;        #/* array for normalised pair counts               */
+            int ncf;              #/* number of correlation functions to be computed */
+            char **cf_exp;        #/* expression for correlation function estimators */
+            ast_t **ast_cf;       #/* abstract syntax trees for 2PCF estimators      */
+            double **cf;          #/* array for storing correlation functions        */
+            int nl;               #/* number of multipoles to be evaluated           */
+            const int *poles;     #/* orders of Legendre polynomials to be evaluated */
+            double **mp;          #/* array for storing 2PCF multipoles              */
+            bint comp_wp;         #/* indicate whether to compute projected 2PCF     */
+            double **wp;          #/* array for storing projected 2PCFs              */
 
-    ctypedef struct CF:
-        int bintype;          # binning scheme: iso, smu, or spi               */
-        real *s2bin;          # edges of squared separation (or s_perp) bins   */
-        real *p2bin;          # edges of squared pi bins                               */
-        void *stab;           # lookup table for separation (or s_perp) bins   */
-        void *ptab;           # lookup table for pi bins                       */
-        uint8_t *mutab;       # lookup table for mu bins                       */
-        int swidth;           # separation (or s_perp) lookup table entry size */
-        int pwidth;           # pi lookup table entry size                     */
-        int tabtype;          # type of the lookup tables (integer vs. hybrid) */
-        int ns;               # number of separation (or s_perp) bins          */
-        int np;               # number of pi bins                              */
-        int nmu;              # number of mu bins                              */
-        #if FCFC_SIMD  <  FCFC_SIMD_AVX512
-        #COUNT *pcnt;          # thread-private array for counting in parallel  */
-        #else
-        void *pcnt;           # vector-private array for counting in parallel  */
-        #endif
-        int treetype;         # type of the tree structure.                    *
-        int ncat;             #/* number of catalogues to be read                */
-        const char *label;    #/* labels of the input catalogues                 */
-        DATA *data;           #/* structures for the input catalogues            */
-        real rescale;         #/* rescaling factor for the input coordinates     */
-        real *sbin_raw;       #/* unrescaled separation (or s_perp) bin edges    */
-        real *pbin_raw;       #/* unrescaled pi bin edges                        */
-        int nthread;          #/* number of OpenMP threads                       */
-        size_t ntot;          #/* total number of bins                           */
-        real *sbin;           #/* edges of separation (or s_perp) bins           */
-        real *pbin;           #/* edges of separation (or s_perp) bins           */
-        int verbose;          #/* indicate whether to show detailed outputs      */
-        int npc;              #/* number of pair counts to be evaluated          */
-        int *pc_idx[2];       #/* pairs to be counted, defined as input indices  */
-        #ifdef MPI
-        #bint *comp_pc;        #/* indicate whether to evaluate the pair counts   */
-        #else#
-        const bint *comp_pc;  #/* indicate whether to evaluate the pair counts   */
-        #endif#
-        bint *wt;             #/* indicate whether using weights for pair counts */
-        bint *cat_wt;         #/* indicate whether using weights in catalogues   */
-        const bint *cnvt;     #/* indicate whether to run coordinate conversion  */
-        COORD_CNVT *coord;    #/* structure for coordinate interpolation         */
-        COUNT **cnt;          #/* array for storing evaluated pair counts        */
-        double *norm;         #/* normalisation factors for pair counts          */
-        double **ncnt;        #/* array for normalised pair counts               */
-        int ncf;              #/* number of correlation functions to be computed */
-        char **cf_exp;        #/* expression for correlation function estimators */
-        ast_t **ast_cf;       #/* abstract syntax trees for 2PCF estimators      */
-        double **cf;          #/* array for storing correlation functions        */
-        int nl;               #/* number of multipoles to be evaluated           */
-        const int *poles;     #/* orders of Legendre polynomials to be evaluated */
-        double **mp;          #/* array for storing 2PCF multipoles              */
-        bint comp_wp;         #/* indicate whether to compute projected 2PCF     */
-        double **wp;          #/* array for storing projected 2PCFs              */
 
     CF * cf_init() nogil
     void cf_destroy(CF *cf) nogil
@@ -219,21 +274,21 @@ cdef dict retrieve_paircounts(CF* cf):
                 for i in range(cf.ns):
                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
     elif cf.wp is not NULL:
-        result['s_perp_min'] = np.empty((cf.ns, cf.np))
-        result['s_perp_max'] = np.copy(result['s_perp_min'])
+        result['smin'] = np.empty((cf.ns, cf.np))
+        result['smax'] = np.copy(result['smin'])
         
-        result['pimin'] = np.copy(result['s_perp_min'])
-        result['pimax'] = np.copy(result['s_perp_min'])
+        result['pimin'] = np.copy(result['smin'])
+        result['pimax'] = np.copy(result['smin'])
         for j in range(cf.np):
             for i in range(cf.ns):
-                result['s_perp_min'][i,j] = cf.sbin_raw[i]
-                result['s_perp_max'][i,j] = cf.sbin_raw[i+1]
+                result['smin'][i,j] = cf.sbin_raw[i]
+                result['smax'][i,j] = cf.sbin_raw[i+1]
                 result['pimin'][i,j] = cf.pbin_raw[j]
                 result['pimax'][i,j] = cf.pbin_raw[j+1]
 
         for idx in range(cf.npc):
             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
-            result[pcnt_label] = np.copy(result['s_perp_min'])
+            result[pcnt_label] = np.copy(result['smin'])
             for j in range(cf.np):
                 for i in range(cf.ns):
                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
@@ -336,9 +391,18 @@ def py_compute_cf(list data_cats,
     if cf is NULL: raise ValueError("C-extension failed, see message above.")
     
     results = {}
-    results['number'] = [cf.data[i].n for i in range(cf.ncat)]
-    results['weighted_number'] = [cf.data[i].wt for i in range(cf.ncat)]
-    results['normalization'] = [cf.norm[i] for i in range(cf.npc)]
+    results['number'] = {}
+    results['weighted_number'] = {}
+    results['labels'] = []
+    for i in range(cf.ncat):
+        label = (<bytes> cf.label[i]).decode('utf-8')
+        results['number'][label] = cf.data[i].n
+        results['weighted_number'][label] = cf.data[i].n
+        results['labels'].append(label)
+    results['normalization'] = {}
+    for i in range(cf.npc):
+        pcnt_label = (<bytes> cf.label[cf.pc_idx[0][i]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][i]]).decode('utf-8')
+        results['normalization'][pcnt_label] = cf.norm[i]
     results['pairs'] = retrieve_paircounts(cf)
     if cf.ncf > 0 :
         results['cf'] = np.squeeze(retrieve_correlations(cf))
