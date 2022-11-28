@@ -1,0 +1,43 @@
+Supported keyword arguments in py_compute_cf
+conf                 String
+Specify the configuration file (default: `fcfc_2pt.conf')
+label                Character array
+Specify the labels of the input catalogs
+convert              Character array or Character i.e. 'T' or ['T', 'F',...]
+Indicate whether to apply coordinate conversion for the inputs
+omega_m              Double
+Density parameter of matter at z = 0, for coordinate conversion
+omega_l              Double
+Density parameter of Lambda at z = 0, for coordinate conversion
+eos_w                Double
+Dark energy equation of state
+cmvdst_err           Double
+Specify the error allowed for comoving distance integration
+cmvdst_file          String
+Specify the table for redshift to comoving distance conversion
+data_struct          Integer
+Specify the data structure for pair counting
+bin                  Integer
+Specify the binning scheme of the correlation functions (0 for iso, 1, for s-mu, 2 for sp-pi)
+pair                 String array i.e. ['AA', 'AB', ...]
+Specify pairs to be counted or read, using the catalog labels
+pair_output          String array
+Specify the output files for pair counts
+cf                   String array
+Expressions for correlation function estimators based on pair counts
+cf_output            String array
+Specify the output files for correlation functions
+multipole            Integer array
+Orders of Legendre multipoles of correlation functions to be evaluated
+mp_output            String array
+Specify the output files for correlation function multipoles
+wp                   Boolean
+Indicate whether to compute the projected correlation functions
+wp_output            String array
+Specify the output files for projected correlation functions
+out_format           Integer (binary or text in FCFC format)
+Format of the output pair count files
+overwrite            Integer
+Indicate whether to overwrite existing output files
+verbose              Boolean
+Indicate whether to display detailed standard outputs
