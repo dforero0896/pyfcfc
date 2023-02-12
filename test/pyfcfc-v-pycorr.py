@@ -180,7 +180,7 @@ for i in range(n_rand_splits):
                             shifted_weights1 = _wshifted,
                             engine='corrfunc', nthreads=nthreads,
                             position_type = 'rdd',
-                            los = 'firstpoint',
+                            los = 'midpoint',
                             D1D2 = D1D2,
                             #estimator = 'landyszalay'
                             )

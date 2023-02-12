@@ -410,7 +410,7 @@ def py_compute_cf(list data_cats,
     for i in range(cf.ns):
         results['s'][i] = 0.5 * (cf.sbin_raw[i] + cf.sbin_raw[i+1])
     if cf.mp is not NULL:
-        results['multipoles'] = retrieve_multipoles(cf)
+        results['multipoles'] = np.asarray(retrieve_multipoles(cf))
     if cf.wp is not NULL:
         results['projected'] = retrieve_projected(cf)
     
