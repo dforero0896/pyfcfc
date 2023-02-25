@@ -168,7 +168,7 @@ wdat = 1. / (1 + P0 * data[:,3])
 wran = 1. / (1 + P0 * rand[:,3])
 
 # Multipoles: Conf sets the CF type. BIN_TYPE = 1
-results = py_compute_cf([np.c_[data, wdat], np.c_[rand, wran]], 
+results = py_compute_cf([data, rand], [wdat, wran], 
                         np.arange(0, 200, 1, dtype=np.double), 
                         None, 
                         100, 
