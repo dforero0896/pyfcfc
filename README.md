@@ -189,10 +189,18 @@ results = py_compute_cf([data, rand], [wdat, wran],
                         convert = 'T') #Coordinate conversion
 
 # Projected: Conf sets the CF type. BIN_TYPE = 2
-results = py_compute_cf([data, rand], [wdat, wran],  conf = "test/fcfc_lc_wp.conf")
+results = py_compute_cf([data, rand], [wdat, wran],
+                        np.arange(0, 200, 1, dtype=np.double), 
+                        np.arange(0, 200, 1, dtype=np.double), 
+                        1,
+                        conf = "test/fcfc_lc_wp.conf")
 
 # Isotropic: Conf sets the CF type. BIN_TYPE = 0
-results = py_compute_cf([data, rand], [wdat, wran],  conf = "test/fcfc_lc_iso.conf")
+results = py_compute_cf([data, rand], [wdat, wran],  
+                        np.arange(0, 200, 1, dtype=np.double), 
+                        None,
+                        1,
+                        conf = "test/fcfc_lc_iso.conf")
 
 ```
 
