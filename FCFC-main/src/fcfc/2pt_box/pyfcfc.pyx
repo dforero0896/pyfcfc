@@ -6,7 +6,7 @@ cimport openmp
 from libc.stdlib cimport malloc, free, calloc
 from libc.stdio cimport FILE, fprintf, fopen, fclose, printf, fflush, stdout, stderr
 cimport libc.limits
-import numpy as np
+import numpy
 from scipy.special import legendre
 from cython cimport floating
 
@@ -245,11 +245,11 @@ cdef dict retrieve_paircounts(CF* cf):
     # Results of count(s,mu) or xi(s,mu) as a list. 
     result = {}
     if cf.mp is not NULL:
-        result['smin'] = np.empty((cf.ns, cf.nmu))
-        result['smax'] = np.copy(result['smin'])
+        result['smin'] = numpy.empty((cf.ns, cf.nmu))
+        result['smax'] = numpy.copy(result['smin'])
         
-        result['mumin'] = np.copy(result['smin'])
-        result['mumax'] = np.copy(result['smin'])
+        result['mumin'] = numpy.copy(result['smin'])
+        result['mumax'] = numpy.copy(result['smin'])
         for j in range(cf.nmu):
             for i in range(cf.ns):
                 result['smin'][i,j] = cf.sbin_raw[i]
@@ -259,16 +259,16 @@ cdef dict retrieve_paircounts(CF* cf):
 
         for idx in range(cf.npc):
             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
-            result[pcnt_label] = np.copy(result['smin'])
+            result[pcnt_label] = numpy.copy(result['smin'])
             for j in range(cf.nmu):
                 for i in range(cf.ns):
                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
     elif cf.wp is not NULL:
-        result['smin'] = np.empty((cf.ns, cf.np))
-        result['smax'] = np.copy(result['smin'])
+        result['smin'] = numpy.empty((cf.ns, cf.np))
+        result['smax'] = numpy.copy(result['smin'])
         
-        result['pimin'] = np.copy(result['smin'])
-        result['pimax'] = np.copy(result['smin'])
+        result['pimin'] = numpy.copy(result['smin'])
+        result['pimax'] = numpy.copy(result['smin'])
         for j in range(cf.np):
             for i in range(cf.ns):
                 result['smin'][i,j] = cf.sbin_raw[i]
@@ -278,19 +278,19 @@ cdef dict retrieve_paircounts(CF* cf):
 
         for idx in range(cf.npc):
             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
-            result[pcnt_label] = np.copy(result['smin'])
+            result[pcnt_label] = numpy.copy(result['smin'])
             for j in range(cf.np):
                 for i in range(cf.ns):
                     result[pcnt_label][i,j] = cf.ncnt[idx][i + j * cf.ns]
     else:
-        result['smin'] = np.empty(cf.ns)
-        result['smax'] = np.copy(result['smin'])
+        result['smin'] = numpy.empty(cf.ns)
+        result['smax'] = numpy.copy(result['smin'])
         for i in range(cf.ns):
                 result['smin'][i] = cf.sbin_raw[i]
                 result['smax'][i] = cf.sbin_raw[i+1]
         for idx in range(cf.npc):
             pcnt_label = (<bytes> cf.label[cf.pc_idx[0][idx]]).decode('utf-8')+(<bytes> cf.label[cf.pc_idx[1][idx]]).decode('utf-8')
-            result[pcnt_label] = np.copy(result['smin'])
+            result[pcnt_label] = numpy.copy(result['smin'])
             for i in range(cf.ns):
                 result[pcnt_label][i] = cf.ncnt[idx][i]
         
@@ -301,19 +301,19 @@ cdef double[:,:,:] retrieve_correlations(CF* cf):
     # Results of count(s,mu) or xi(s,mu) as a list. 
     
     if cf.mp is not NULL:
-        result = np.empty((cf.ncf, cf.ns, cf.nmu))
+        result = numpy.empty((cf.ncf, cf.ns, cf.nmu))
         for idx in range(cf.ncf):
             for j in range(cf.nmu):
                 for i in range(cf.ns):
                     result[idx,i,j] = cf.cf[idx][i + j * cf.ns]
     elif cf.wp is not NULL:
-        result = np.empty((cf.ncf, cf.ns, cf.np))
+        result = numpy.empty((cf.ncf, cf.ns, cf.np))
         for idx in range(cf.ncf):
             for j in range(cf.np):
                 for i in range(cf.ns):
                     result[idx,i,j] = cf.cf[idx][i + j * cf.ns]
     else:
-        result = np.empty((1,cf.ncf, cf.ns))
+        result = numpy.empty((1,cf.ncf, cf.ns))
         for idx in range(cf.ncf):
             for i in range(cf.ns):
                 result[0,idx,i] = cf.cf[idx][i]
@@ -323,7 +323,7 @@ cdef double[:,:,:] retrieve_correlations(CF* cf):
 
 
 cdef double[:,:,:] retrieve_multipoles(CF* cf):
-    results = np.empty((cf.ncf, cf.nl, cf.ns))
+    results = numpy.empty((cf.ncf, cf.nl, cf.ns))
     for idx in range(cf.ncf):
         for j in range(cf.nl):
             for i in range(cf.ns):
@@ -331,7 +331,7 @@ cdef double[:,:,:] retrieve_multipoles(CF* cf):
     return results
 
 cdef double[:,:] retrieve_projected(CF* cf):
-    results = np.empty((cf.ncf, cf.ns))
+    results = numpy.empty((cf.ncf, cf.ns))
     for idx in range(cf.ncf):
         for i in range(cf.ns):
             results[idx, i] = cf.wp[idx][i]
@@ -354,9 +354,9 @@ def py_compute_cf(list data_cats,
         data_init(dat + i)
         cat_dtype = data_cats[i].dtype
         wt_dtype = data_wts[i].dtype
-        if cat_dtype == np.float64 and wt_dtype == np.float64:
+        if cat_dtype == numpy.float64 and wt_dtype == numpy.float64:
             npy_to_data(dat, data_cats[i], data_wts[i], i)
-        elif cat_dtype == np.float32 and wt_dtype == np.float32:
+        elif cat_dtype == numpy.float32 and wt_dtype == numpy.float32:
             npy_to_data_f(dat, data_cats[i], data_wts[i], i)
         else:
             raise TypeError(f"Positions and weights must have the same dtype. Got {cat_dtype} and {wt_dtype}.")
@@ -399,12 +399,12 @@ def py_compute_cf(list data_cats,
         results['normalization'][pcnt_label] = cf.norm[i]
     results['pairs'] = retrieve_paircounts(cf)
     if cf.ncf > 0 :
-        results['cf'] = np.squeeze(retrieve_correlations(cf))
-    results['s'] = np.empty(cf.ns)
+        results['cf'] = numpy.squeeze(retrieve_correlations(cf))
+    results['s'] = numpy.empty(cf.ns)
     for i in range(cf.ns):
         results['s'][i] = 0.5 * (cf.sbin_raw[i] + cf.sbin_raw[i+1])
     if cf.mp is not NULL:
-        results['multipoles'] = np.asarray(retrieve_multipoles(cf))
+        results['multipoles'] = numpy.asarray(retrieve_multipoles(cf))
     if cf.wp is not NULL:
         results['projected'] = retrieve_projected(cf)
     
