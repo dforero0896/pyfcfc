@@ -22,7 +22,8 @@ except:
 nobj = data.shape[0]
 w = np.ones(nobj)
 labels = ['Nat', "LS"]
-rand = 1000. * np.random.random((2 * nobj, 3)).astype(np.double)
+np.random.seed(42)
+rand = 1000. * np.random.random((5 * nobj, 3)).astype(np.double)
 wran = np.ones(rand.shape[0])
 
 

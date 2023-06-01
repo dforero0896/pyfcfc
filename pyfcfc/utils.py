@@ -55,9 +55,7 @@ def compute_wp(correlation_function, pi_edges):
     wp = (correlation_function * dpi[None,:] * 2).sum(axis=1)
     return wp
 
-
-
-def pairs_to_pycorr(results, estimator_name, pair_mapping):
+def pairs_to_pycorr(results, estimator_name, pair_mapping, box_size = None):
     
     s_edges = results['pairs']['smin'][:,0]
     s_edges = np.append(s_edges, results['pairs']['smax'][-1,0])
@@ -78,9 +76,12 @@ def pairs_to_pycorr(results, estimator_name, pair_mapping):
 
     estimator_state = {}
     estimator_state['name'] = estimator_name
+    
     for key, val in results['pairs'].items():
         
         if len(key) > 2: continue
+        #print(key)
+        if key not in pair_mapping: continue
         state = {}
         #['name', 'autocorr', 'is_reversible', 'seps', 'ncounts', 'wcounts', 'wnorm', 'size1', 'size2', 'edges', 'mode', 'bin_type',
         #         'boxsize', 'los_type', 'compute_sepsavg', 'weight_attrs', 'cos_twopoint_weights', 'dtype', 'attrs']
@@ -97,15 +98,18 @@ def pairs_to_pycorr(results, estimator_name, pair_mapping):
         state['ncounts'] = results['pairs'][key] * results['normalization'][key]
         state['wcounts'] = results['pairs'][key] * results['normalization'][key]
         if mode == 'smu':
+            state['ncounts'][:] /= 2
+            state['wcounts'][:] /= 2
             state['ncounts'] = np.concatenate((state['ncounts'][:,::-1], state['ncounts']), axis=1)
             state['wcounts'] = np.concatenate((state['wcounts'][:,::-1], state['wcounts']), axis=1)
+        
         state['wnorm'] = results['normalization'][key]
         state['size1'] = results['weighted_number'][key[0]]
         state['size2'] = results['weighted_number'][key[1]]
         state['edges'] = edges
         state['mode'] = mode
         state['bin_type'] = 'auto'
-        state['boxsize'] = np.nan
+        state['boxsize'] = box_size
         state['los_type'] = 'firstpoint'
         state['compute_sepsavg'] = [False, False] if mode == 'smu' or mode == 'rppi' else [False]
         state['weight_attrs'] = {}
@@ -115,11 +119,13 @@ def pairs_to_pycorr(results, estimator_name, pair_mapping):
         else:
             for i in range(2):
                 estimator_state[pair_mapping[key][i]] = state
+    if 'R1R2' not in estimator_state and estimator_name == 'natural':
+        from pycorr import TwoPointEstimator, AnalyticTwoPointCounter
+        assert box_size is not None
+        size1 = estimator_state['D1D2']['size1']
+        size2 = None#estimator_state['D1D2']['size2']
+        estimator_state['R1R2'] = AnalyticTwoPointCounter(mode, edges, box_size, size1 = size1, size2 = size2, los='z').__getstate__()
     return estimator_state
-
-
-
-
 
 
 
