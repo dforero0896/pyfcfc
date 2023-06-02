@@ -214,8 +214,12 @@ def test_cutsky():
 
 def test_paircounts():
     np.random.seed(42)
-    data = 1000. * np.random.random((10000, 3))
-    wdata = np.ones_like(data[:,0])
+    data = 1000. * np.random.random((1000000, 3))
+    wdata = np.ones_like(data[:,0]) * 0.5
+    weightedn = np.sum(wdata)
+    norm = weightedn * (weightedn - 1)
+    print("expected norm pyfcfc:", norm)
+    print("expected norm pycorr:", (wdata.sum()**2) - (wdata**2).sum())
     
     
     print("pycorr...", flush=True)
@@ -233,10 +237,10 @@ def test_paircounts():
                                 D1D2 = None,
                                 #estimator = 'landyszalay'
                                 )
-    print(result.D1D2.ncounts / result.D1D2.wnorm)
+    print(result.D1D2.wcounts / result.D1D2.wnorm)
     print(result.D1D2.wnorm)
     nmu_bins = result.D1D2.ncounts.shape[1] // 2
-    print(result.D1D2.ncounts[:,:nmu_bins][:,::-1] + result.D1D2.ncounts[:,nmu_bins:])
+    print(result.D1D2.wcounts[:,:nmu_bins][:,::-1] + result.D1D2.wcounts[:,nmu_bins:])
     print("pyfcfc...", flush=True)
     
     results = py_compute_cf([data, data], 
