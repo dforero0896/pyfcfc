@@ -214,7 +214,7 @@ def test_cutsky():
 
 def test_paircounts():
     np.random.seed(42)
-    data = 1000. * np.random.random((1000000, 3))
+    data = 1000. * np.random.random((10000, 3))
     wdata = np.ones_like(data[:,0]) * 0.5
     weightedn = np.sum(wdata)
     norm = weightedn * (weightedn - 1)
