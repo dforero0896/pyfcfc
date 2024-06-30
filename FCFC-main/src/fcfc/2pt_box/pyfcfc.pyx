@@ -212,7 +212,7 @@ cdef extern from "fcfc.h":
 cdef void npy_to_data(DATA* c_data, 
                         double[:,:] npy_pos,
                         double[:] npy_wt,
-                        size_t data_id) nogil:
+                        size_t data_id) noexcept nogil:
 
     cdef size_t i, j
     c_data[data_id].n = <size_t> npy_wt.shape[0]
@@ -227,7 +227,7 @@ cdef void npy_to_data(DATA* c_data,
 cdef void npy_to_data_f(DATA* c_data, 
                         float[:,:] npy_pos,
                         float[:] npy_wt,
-                        size_t data_id) nogil:
+                        size_t data_id) noexcept nogil:
 
     cdef size_t i, j
     c_data[data_id].n = <size_t> npy_wt.shape[0]

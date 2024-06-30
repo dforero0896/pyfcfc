@@ -113,8 +113,6 @@ For isotropic CF there are no extra keys
 ```python
 import numpy as np
 import proplot as pplt
-import sys
-sys.path.append("/global/homes/d/dforero/codes/pyfcfc/")
 from pyfcfc.boxes import py_compute_cf
 
 data = 1000. * np.random.random((nobj, 3)).astype(np.double)
@@ -154,8 +152,8 @@ results = py_compute_cf([data, data, rand, rand], [w, w, wran, wran],  conf = "t
 import numpy as np
 import pandas as pd
 import proplot as pplt
-import sys
-sys.path.append("/global/homes/d/dforero/codes/pyfcfc/")
+
+
 from pyfcfc.sky import py_compute_cf
 
 data = pd.read_csv(dat_fname, usecols = (0,1,3,4), engine='c', delim_whitespace=True, names = ['ra', 'dec', 'zrsd', 'nz']).values.astype(np.float64)

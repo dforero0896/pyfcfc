@@ -1,5 +1,6 @@
 #from distutils.extension import Extension
-from Cython.Distutils.extension import Extension
+from setuptools import setup, find_packages, Extension
+#from Cython.Distutils.extension import Extension
 from Cython.Distutils.build_ext import new_build_ext
 from distutils.core import setup
 from Cython.Build import cythonize
@@ -67,7 +68,7 @@ print(vars(pyfcfc_box))
 setup(name='pyfcfc',
       ext_modules=cythonize([pyfcfc_box, pyfcfc_sky], gdb_debug=False, compile_time_env=cython_compile_time_env),
       packages=['pyfcfc'],
-      annotate = True,
+      annotate = False,
       author = "Daniel Forero & Cheng Zhao",
       author_email = "dfforero10@gmail.com"
       )
