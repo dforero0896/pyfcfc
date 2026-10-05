@@ -66,63 +66,6 @@ static inline void data_init(DATA *data) {
 }
 
 /******************************************************************************
-Function `read_bins`:
-  Read separation bins from a file.
-Arguments:
-  * `fname`:    name of the file to be read;
-  * `num`:      number of separation bins read from file;
-  * `bins`:     address of the array for separation bin edges.
-Return:
-  Zero on success; non-zero on error.
-******************************************************************************/
-static int read_bins(const char *fname, int *num, real **bins) {
-  double *tx, *ty;
-  size_t nread;
-  /* Read bin edges from file. */
-  if (read_ascii_table(fname, &tx, &ty, &nread)) {
-    P_ERR("failed to read separation bins from files: `%s'\n", fname);
-    return FCFC_ERR_FILE;
-  }
-  /* Validate separation bins. */
-  if (nread > FCFC_MAX_NSBIN) {
-    P_ERR("too many bins (%zu) read from file: `%s'\n", nread, fname);
-    free(tx); free(ty);
-    return FCFC_ERR_FILE;
-  }
-  for (size_t i = 1; i < nread; i++) {
-    if (fabs(tx[i] - ty[i - 1]) > DOUBLE_TOL) {
-      P_ERR("discontinuous separation bin (" OFMT_DBL "," OFMT_DBL ") and ("
-          OFMT_DBL "," OFMT_DBL ") in file: `%s'\n",
-          tx[i - 1], ty[i - 1], tx[i], ty[i], fname);
-      free(tx); free(ty);
-      return FCFC_ERR_FILE;
-    }
-  }
-
-  /* Allocate memory and store bins. */
-  real *sbin = malloc(sizeof(real) * (nread + 1));
-  if (!sbin) {
-    P_ERR("failed to allocate memory for separation bins\n");
-    free(tx); free(ty);
-    return FCFC_ERR_MEMORY;
-  }
-
-  sbin[0] = tx[0];
-  for (size_t i = 1; i < nread; i++) {
-    if (tx[i] != ty[i - 1]) sbin[i] = (tx[i] + ty[i - 1]) * 0.5;
-    else sbin[i] = tx[i];
-  }
-  sbin[nread] = ty[nread - 1];
-
-  *num = (int) nread;
-  *bins = sbin;
-
-  free(tx);
-  free(ty);
-  return 0;
-}
-
-/******************************************************************************
 Function `cf_expression`:
   Convert the strings of correlation function estimators to libast expressions.
 Arguments:
@@ -370,19 +313,38 @@ static real least_fac4(real a, real b, real c, real d) {
 }
 
 /******************************************************************************
+Function `bins_are_linear`:
+  Check whether bin edges are uniform within a relative tolerance.
+Arguments:
+  * `bin`:      edges of the bins;
+  * `n`:        number of bins.
+Return:
+  True if all the bins have (almost) the same width.
+******************************************************************************/
+static bool bins_are_linear(const real *bin, const int n) {
+  if (n < 2) return true;
+  real ds = bin[1] - bin[0];
+  if (!(ds > 0)) return false;
+  const real tol = 1e-8 * ds;
+  for (int i = 1; i < n; i++) {
+    real diff = bin[i + 1] - bin[i] - ds;
+    if (diff > tol || diff < -tol) return false;
+  }
+  return true;
+}
+
+/******************************************************************************
 Function `create_tab_sbin`:
   Rescale separation bins and create the table for index lookup.
 Arguments:
   * `conf`:     structure for storing configurations;
   * `cf`:       structure for correlation function settings.
 ******************************************************************************/
-static void create_tab_sbin( CONF *conf, CF *cf) {
-  //if (!conf->fsbin) {   /* linear separation bins */
-  if ((cf->sbin[cf->ns] - cf->sbin[cf->ns-1]) == (cf->sbin[1] - cf->sbin[0])) { // Linear s bins}
-    conf->smin = cf->sbin[0];
-    conf->ds = cf->sbin[cf->ns] - cf->sbin[cf->ns-1];
-    printf("\nCreating a lookup table for linear bins\n");
-    const real fac = least_fac2(conf->smin, conf->ds);
+static void create_tab_sbin(CF *cf) {
+  if (bins_are_linear(cf->sbin, cf->ns)) {   /* linear separation bins */
+    const real smin = cf->sbin[0];
+    const real ds = cf->sbin[1] - cf->sbin[0];
+    const real fac = least_fac2(smin, ds);
     if (fac != 0) {
       /* Compute the length of the lookup table. */
       real smin = cf->sbin[0] * fac;
@@ -399,6 +361,8 @@ static void create_tab_sbin( CONF *conf, CF *cf) {
             cf->s2bin[i] = cf->sbin[i] * cf->sbin[i];
           }
           /* Create the lookup table for integer bin edges. */
+          if (cf->verbose)
+            printf("  Creating a lookup table for linear bins\n");
           cf->tabtype = FCFC_LOOKUP_TYPE_INT;
           cf->stab = create_lut_int(cf->s2bin, cf->ns, &cf->swidth);
           return;
@@ -406,7 +370,8 @@ static void create_tab_sbin( CONF *conf, CF *cf) {
       }
     }
   }
-  printf("\nCreating a hybrid lookup table for nonlinear bins\n");
+  if (cf->verbose)
+    printf("  Creating a hybrid lookup table for nonlinear bins\n");
   /* Hybrid lookup: nonlinear bin, or the table is too long for integer bins. */
   real smax = cf->sbin[cf->ns];
   smax *= smax;         /* the maximum squared distance */
@@ -434,16 +399,14 @@ Arguments:
   * `conf`:     structure for storing configurations;
   * `cf`:       structure for correlation function settings.
 ******************************************************************************/
-static void create_tab_sp_pi( CONF *conf, CF *cf) {
-  //if (!conf->fsbin && !conf->fpbin) {   /* linear s_perp and pi bins */
-  if (((cf->sbin[cf->ns] - cf->sbin[cf->ns-1]) == (cf->sbin[1] - cf->sbin[0])) && \
-      ((cf->pbin[cf->np] - cf->pbin[cf->np-1]) == (cf->pbin[1] - cf->pbin[0]))) { // Linear s and p bins}
-      printf("\nCreating a lookup table for linear bins\n");
-    //conf->smin = cf->sbin[0];
-    //conf->ds = cf->sbin[cf->ns] - cf->sbin[cf->ns-1];
-    //conf->pmin = cf->pbin[0];
-    //conf->dpi = cf->pbin[cf->np] - cf->pbin[cf->np-1];
-    const real fac = least_fac4(conf->smin, conf->ds, conf->pmin, conf->dpi);
+static void create_tab_sp_pi(CF *cf) {
+  if (bins_are_linear(cf->sbin, cf->ns) &&
+      bins_are_linear(cf->pbin, cf->np)) {   /* linear s_perp and pi bins */
+    const real smin = cf->sbin[0];
+    const real ds = cf->sbin[1] - cf->sbin[0];
+    const real pmin = cf->pbin[0];
+    const real dpi = cf->pbin[1] - cf->pbin[0];
+    const real fac = least_fac4(smin, ds, pmin, dpi);
     if (fac != 0) {
       /* Compute the lengths of the lookup table. */
       real s1 = cf->sbin[0] * fac;
@@ -468,6 +431,8 @@ static void create_tab_sp_pi( CONF *conf, CF *cf) {
             cf->p2bin[i] = cf->pbin[i] * cf->pbin[i];
           }
           /* Create lookup tables for integer bin edges. */
+          if (cf->verbose)
+            printf("  Creating a lookup table for linear bins\n");
           cf->tabtype = FCFC_LOOKUP_TYPE_INT;
           cf->stab = create_lut_int(cf->s2bin, cf->ns, &cf->swidth);
           cf->ptab = create_lut_int(cf->p2bin, cf->np, &cf->pwidth);
@@ -476,7 +441,8 @@ static void create_tab_sp_pi( CONF *conf, CF *cf) {
       }
     }
   }
-  printf("\nCreating a hybrid lookup table for nonlinear bins\n");
+  if (cf->verbose)
+    printf("  Creating a hybrid lookup table for nonlinear bins\n");
   /* Hybrid lookup: nonlinear bin, or the table is too long for integer bins. */
   real smax = cf->sbin[cf->ns];
   smax *= smax;                         /* the maximum squared s_perp */
@@ -560,9 +526,10 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
     , const PARA *para
 #endif
     ) {
-  printf("Initialising the correlation function calculation ...");
-  if (conf->verbose) printf("\n");
-  fflush(stdout);
+  if (conf->verbose) {
+    printf("Initialising the correlation function calculation ...\n");
+    fflush(stdout);
+  }
 
   CF *cf = cf_init();
   if (!cf) {
@@ -576,21 +543,45 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
 #else
   cf->nthread = 1;
 #endif
-  cf->data = data; 
+  /* `cf->data' is attached at the end of this function, once the setup
+   * succeeds, so that the caller keeps the ownership on failures. */
   cf->bintype = conf->bintype;
   cf->ns = ns;
   cf->np = np;
-  cf->nmu = nmu > 1 ? nmu : 1;
+  /* mu bins only exist for the (s, mu) scheme; upstream enforced this in
+   * the configuration parser, which the Python binding bypasses.  Keeping
+   * nmu > 1 here would overflow the analytic-RR array in isotropic mode. */
+  if (conf->bintype == FCFC_BIN_SMU)
+    cf->nmu = nmu > 1 ? nmu : 1;
+  else
+    cf->nmu = 1;
+  if (conf->bintype != FCFC_BIN_SPI)
+    cf->np = 0;
   cf->treetype = conf->dstruct;
 
   cf->ncat = conf->ninput;
-  cf->label = conf->label;
+  if (cf->ncat < 1) {
+    P_ERR("no input catalog is specified\n");
+    cf_destroy(cf); return NULL;
+  }
+  /* Deep copy the labels, so that `cf' does not reference `conf'. */
+  if (!(cf->label = malloc(sizeof(char) * cf->ncat))) {
+    P_ERR("failed to allocate memory for the catalog labels\n");
+    cf_destroy(cf); return NULL;
+  }
+  memcpy((void *) cf->label, conf->label, sizeof(char) * cf->ncat);
   cf->cnvt = conf->cnvt;
 
   cf->npc = conf->npc;
   cf->ncf = conf->ncf;
   cf->nl = conf->npole;
-  cf->poles = conf->poles;
+  if (cf->nl > 0) {
+    if (!(cf->poles = malloc(sizeof(int) * cf->nl))) {
+      P_ERR("failed to allocate memory for the multipole orders\n");
+      cf_destroy(cf); return NULL;
+    }
+    memcpy((void *) cf->poles, conf->poles, sizeof(int) * cf->nl);
+  }
   cf->comp_wp = conf->wp;
   cf->verbose = conf->verbose;
   
@@ -611,14 +602,27 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
     }
   }
 
-  /* Define separation bins. */
-  if (sbins != NULL){
-    cf->sbin = sbins;
-    cf->ns = ns;
-  }
-  else {
-    P_ERR("Separation bins unset\n");
+  /* Define separation bins (deep copy: the bin edges are rescaled in place
+   * when creating lookup tables, and the input array belongs to Python). */
+  if (!sbins || ns < 1) {
+    P_ERR("separation bins are unset or empty\n");
     cf_destroy(cf); return NULL;
+  }
+  if (!(cf->sbin = malloc(sizeof(real) * (ns + 1)))) {
+    P_ERR("failed to allocate memory for separation bins\n");
+    cf_destroy(cf); return NULL;
+  }
+  memcpy(cf->sbin, sbins, sizeof(real) * (ns + 1));
+  cf->ns = ns;
+  if (cf->sbin[0] < 0) {
+    P_ERR("separation bin edges must be non-negative\n");
+    cf_destroy(cf); return NULL;
+  }
+  for (int i = 0; i < cf->ns; i++) {
+    if (!(cf->sbin[i] < cf->sbin[i + 1])) {
+      P_ERR("separation bin edges must be strictly increasing\n");
+      cf_destroy(cf); return NULL;
+    }
   }
   
   if (conf->verbose) printf("  %d separation bins loaded\n",
@@ -634,14 +638,28 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
 
   /* Define pi bins */
   if (cf->bintype == FCFC_BIN_SPI) {
-    if (pbins != NULL) {  /* read pi bins from file */
-      cf->pbin = pbins;
+    if (pbins && np >= 1) {  /* deep copy of the pi bins */
+      if (!(cf->pbin = malloc(sizeof(real) * (np + 1)))) {
+        P_ERR("failed to allocate memory for pi bins\n");
+        cf_destroy(cf); return NULL;
+      }
+      memcpy(cf->pbin, pbins, sizeof(real) * (np + 1));
       cf->np = np;
+      if (cf->pbin[0] < 0) {
+        P_ERR("pi bin edges must be non-negative\n");
+        cf_destroy(cf); return NULL;
+      }
+      for (int i = 0; i < cf->np; i++) {
+        if (!(cf->pbin[i] < cf->pbin[i + 1])) {
+          P_ERR("pi bin edges must be strictly increasing\n");
+          cf_destroy(cf); return NULL;
+        }
+      }
       if (conf->verbose) printf("  %d pi bins loaded\n",
           cf->np);
     }
     else {
-      P_ERR("Pi bins required\n");
+      P_ERR("pi bins are required by the (s_perp, pi) binning scheme\n");
       cf_destroy(cf); return NULL;
     }
     /* Allocate memory for unrescaled and squared pi bin edges. */
@@ -656,14 +674,14 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
   /* Compute the total number of bins, and create lookup tables. */
   cf->ntot = cf->ns;
   if (cf->bintype == FCFC_BIN_SPI) {
-    create_tab_sp_pi(conf, cf);
+    create_tab_sp_pi(cf);
     if (!cf->stab || !cf->ptab) {
       cf_destroy(cf); return NULL;
     }
     cf->ntot *= cf->np;
   }
   else {
-    create_tab_sbin(conf, cf);
+    create_tab_sbin(cf);
     if (!cf->stab) {
       cf_destroy(cf); return NULL;
     }
@@ -687,7 +705,9 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
 
   for (int i = 0; i < cf->npc; i++) {
     cf->pc_idx[0][i] = cf->pc_idx[1][i] = -1;
-    if (!cf->comp_pc[i]) continue;
+    /* Resolve the catalogue labels also for pair counts that are read
+     * from files (comp_pc false): the results dictionary is keyed by
+     * them whichever way the counts were obtained. */
     for (int j = 0; j < cf->ncat; j++) {
       if (cf->label[j] == conf->pc[i][0]) cf->pc_idx[0][i] = j;
       if (cf->label[j] == conf->pc[i][1]) cf->pc_idx[1][i] = j;
@@ -707,7 +727,7 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
         break;
       }
     }
-    if (!found)
+    if (!found && conf->verbose)
       P_WRN("catalog <%c> is not required for pair counting\n", cf->label[i]);
   }
 
@@ -833,8 +853,11 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
     }
   }
 
+  /* Attach the input catalogues now that the setup has succeeded. */
+  cf->data = data;
+
 #ifndef MPI
-  printf(FMT_DONE);
+  if (cf->verbose) printf(FMT_DONE);
 #endif
   return cf;
 }
@@ -994,6 +1017,10 @@ Arguments:
 void cf_destroy(CF *cf) {
   if (!cf) return;
   if (cf->s2bin) free(cf->s2bin);
+  if (cf->sbin) free(cf->sbin);
+  if (cf->pbin) free(cf->pbin);
+  if (cf->label) free((void *) cf->label);
+  if (cf->poles) free((void *) cf->poles);
   if (cf->p2bin) free(cf->p2bin);
   if (cf->stab) free(cf->stab);
   if (cf->ptab) free(cf->ptab);

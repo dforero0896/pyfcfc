@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=64", "wheel", "Cython>=3.0", "numpy>=2.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyfcfc"
+version = "0.2.0"
+description = "Python bindings for the FCFC two-point correlation function calculator"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Daniel Forero", email = "dfforero10@gmail.com" },
+]
+maintainers = [
+    { name = "Daniel Forero", email = "dfforero10@gmail.com" },
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.19",
+    "scipy>=1.5",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: C",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+examples = ["matplotlib"]
+pycorr = ["pycorr"]
+
+[project.urls]
+Homepage = "https://github.com/dforero0896/pyfcfc"
+Repository = "https://github.com/dforero0896/pyfcfc"
+"FCFC (upstream C code)" = "https://github.com/cheng-zhao/FCFC"
+
+[tool.setuptools]
+packages = ["pyfcfc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "pycorr: tests that require pycorr (and the corrfunc engine)",
+    "slow: tests that take more than a few seconds",
+]
