@@ -66,9 +66,11 @@ static int eval_pairs(const CONF *conf, CF *cf
 #ifdef MPI
       if (para->rank == para->root) {
 #endif
-        printf("Reading %s pairs ...", conf->pc[i]);
-        if (conf->verbose) printf("\n  Filename: %s\n", conf->pcout[i]);
-        fflush(stdout);
+        if (conf->verbose) {
+          printf("Reading %s pairs ...\n  Filename: %s\n", conf->pc[i],
+              conf->pcout[i]);
+          fflush(stdout);
+        }
 
         int e = read_pair_count(conf->pcout[i], cf, i);
         if (e) {
@@ -76,7 +78,7 @@ static int eval_pairs(const CONF *conf, CF *cf
           FCFC_QUIT(e);
         }
 
-        printf(FMT_DONE);
+        if (conf->verbose) printf(FMT_DONE);
 #ifdef MPI
         fflush(stdout);
       }
@@ -107,9 +109,11 @@ static int eval_pairs(const CONF *conf, CF *cf
 #ifdef MPI
     if (para->rank == para->root) {
 #endif
-      printf("Counting %c%c pairs ...", cf->label[cat[0]], cf->label[cat[1]]);
-      if (conf->verbose) printf("\n");
-      fflush(stdout);
+      if (cf->verbose) {
+        printf("Counting %c%c pairs ...\n", cf->label[cat[0]],
+            cf->label[cat[1]]);
+        fflush(stdout);
+      }
 #ifdef MPI
     }
 #endif
@@ -125,13 +129,8 @@ static int eval_pairs(const CONF *conf, CF *cf
         /* Double auto pairs. */
         if (cf->wt[i]) {
           for (size_t k = 0; k < cf->ntot; k++) cf->cnt[i][k].d *= 2;
-          //cf->norm[i] = cf->data[cat[0]].wt * (cf->data[cat[0]].wt - 1);
-          double wt2sum;
-
-          for (size_t kk = 0; kk < cf->data[cat[0]].n; kk++){
-            wt2sum += cf->data[cat[0]].w[kk] * cf->data[cat[0]].w[kk];
-          }
-          cf->norm[i] = cf->data[cat[0]].wt * cf->data[cat[0]].wt - wt2sum;
+          cf->norm[i] = cf->data[cat[0]].wt * cf->data[cat[0]].wt
+              - cf->data[cat[0]].w2;
         }
         else {
           for (size_t k = 0; k < cf->ntot; k++) cf->cnt[i][k].i *= 2;
@@ -212,7 +211,7 @@ static int eval_pairs(const CONF *conf, CF *cf
 #ifdef MPI
     if (para->rank == para->root) {
 #endif
-      printf(FMT_DONE);
+      if (cf->verbose) printf(FMT_DONE);
 #ifdef MPI
       fflush(stdout);
     }
@@ -264,9 +263,10 @@ Return:
   Zero on success; non-zero on error.
 ******************************************************************************/
 static int eval_cf_exp(const CONF *conf, CF *cf) {
-  printf("Evaluate correlation function estimators ...");
-  if (conf->verbose) printf("\n");
-  fflush(stdout);
+  if (cf->verbose) {
+    printf("Evaluate correlation function estimators ...\n");
+    fflush(stdout);
+  }
 
   /* Prepare the array of normalised pair counts, for libast evaluations. */
 #ifdef OMP
@@ -317,7 +317,7 @@ static int eval_cf_exp(const CONF *conf, CF *cf) {
   }
 
   free(pc);
-  printf(FMT_DONE);
+  if (cf->verbose) printf(FMT_DONE);
 #ifdef MPI
   fflush(stdout);
 #endif
@@ -334,9 +334,10 @@ Return:
   Zero on success; non-zero on error.
 ******************************************************************************/
 static int eval_cf_mp(const CONF *conf, CF *cf) {
-  printf("Compute correlation function multipoles ...");
-  if (conf->verbose) printf("\n");
-  fflush(stdout);
+  if (cf->verbose) {
+    printf("Compute correlation function multipoles ...\n");
+    fflush(stdout);
+  }
 
   for (int i = 0; i < cf->ncf; i++) {
     for (int l = 0; l < cf->nl; l++) {
@@ -358,7 +359,7 @@ static int eval_cf_mp(const CONF *conf, CF *cf) {
     }
   }
 
-  printf(FMT_DONE);
+  if (cf->verbose) printf(FMT_DONE);
 #ifdef MPI
   fflush(stdout);
 #endif
@@ -375,13 +376,14 @@ Return:
   Zero on success; non-zero on error.
 ******************************************************************************/
 static int eval_cf_wp(const CONF *conf, CF *cf) {
-  printf("Compute projected correlation functions ...");
-  if (conf->verbose) printf("\n");
-  fflush(stdout);
+  if (cf->verbose) {
+    printf("Compute projected correlation functions ...\n");
+    fflush(stdout);
+  }
 
   for (int i = 0; i < cf->ncf; i++) {
     for (int j = 0; j < cf->np; j++) {
-      double dpi = cf->pbin[j + 1] - cf->pbin[j];
+      double dpi = cf->pbin_raw[j + 1] - cf->pbin_raw[j];
       for (int k = 0; k < cf->ns; k++) {
         cf->wp[i][k] += 2 * cf->cf[i][k + j * cf->ns] * dpi;
       }
@@ -394,7 +396,7 @@ static int eval_cf_wp(const CONF *conf, CF *cf) {
     }
   }
 
-  printf(FMT_DONE);
+  if (cf->verbose) printf(FMT_DONE);
 #ifdef MPI
   fflush(stdout);
 #endif

@@ -79,364 +79,6 @@
 \*============================================================================*/
 
 /******************************************************************************
-Function `usage`:
-  Print the usage of command line options.
-******************************************************************************/
-static void usage(void *args) {
-  (void) args;
-  printf(FCFC_LOGO "\nUsage: " FCFC_CODE_NAME " [OPTION]\n\
-Compute the 2-point correlation functions of catalogs in periodic boxes.\n\
-  -h, --help\n\
-        Display this message and exit\n\
-  -V, --version\n\
-        Display the version information\n\
-  -t, --template\n\
-        Print a template configuration file to the standard output and exit\n\
-  -c, --conf            " FMT_KEY(CONFIG_FILE) "     String\n\
-        Specify the configuration file (default: `%s')\n\
-  -i, --input           " FMT_KEY(CATALOG) "         String array\n\
-        Specify the input catalogs\n\
-  -l, --label           " FMT_KEY(CATALOG_LABEL) "   Character array\n\
-        Specify the labels of the input catalogs\n\
-  -T, --type            " FMT_KEY(CATALOG_TYPE) "    Integer array\n\
-        Type (format) of the input catalogs\n\
-      --skip            " FMT_KEY(ASCII_SKIP) "      Long integer array\n\
-        Numbers of lines to be skipped for the ASCII format input catalogs\n\
-      --comment         " FMT_KEY(ASCII_COMMENT) "   Character array\n\
-        Comment symbols for the ASCII format input catalogs\n\
-  -f, --formatter       " FMT_KEY(ASCII_FORMATTER) " String array\n\
-        Formatters for columns of ASCII format input catalogs\n\
-  -x, --position        " FMT_KEY(POSITION) "        String array\n\
-        Column indicator or expression for the 3-D positions of the inputs\n\
-  -w, --weight          " FMT_KEY(WEIGHT) "          String array\n\
-        Column indicator or expression for weights of the inputs\n\
-  -s, --select          " FMT_KEY(SELECTION) "       String array\n\
-        Expressions for sample selection criteria\n\
-  -b, --box             " FMT_KEY(BOX_SIZE) "        Double array\n\
-        Side lengths of the periodic box for distance evaluations\n\
-  -S, --data-struct     " FMT_KEY(DATA_STRUCT) "     Integer\n\
-        Specify the data structure for pair counting\n\
-  -B, --bin             " FMT_KEY(BINNING_SCHEME) "  Integer\n\
-        Specify the binning scheme of the correlation functions\n\
-  -p, --pair            " FMT_KEY(PAIR_COUNT) "      String array\n\
-        Specify pairs to be counted or read, using the catalog labels\n\
-  -P, --pair-output     " FMT_KEY(PAIR_COUNT_FILE) " String array\n\
-        Specify the output files for pair counts\n\
-  -e, --cf              " FMT_KEY(CF_ESTIMATOR) "    String array\n\
-        Expressions for correlation function estimators based on pair counts\n\
-  -E, --cf-output       " FMT_KEY(CF_OUTPUT_FILE) "  String array\n\
-        Specify the output files for correlation functions\n\
-  -m, --multipole       " FMT_KEY(MULTIPOLE) "       Integer array\n\
-        Orders of Legendre multipoles of correlation functions to be evaluated\n\
-  -M, --mp-output       " FMT_KEY(MULTIPOLE_FILE) "  String array\n\
-        Specify the output files for correlation function multipoles\n\
-  -u, --wp              " FMT_KEY(PROJECTED_CF) "    Boolean\n\
-        Indicate whether to compute the projected correlation functions\n\
-  -U, --wp-output       " FMT_KEY(PROJECTED_FILE) "  String array\n\
-        Specify the output files for projected correlation functions\n\
-      --s-file          " FMT_KEY(SEP_BIN_FILE) "    String\n\
-        Specify the file defining edges of separation (or s_perp) bins\n\
-      --s-min           " FMT_KEY(SEP_BIN_MIN) "     Double\n\
-        Specify the lower limit of linear separation (or s_perp) bins\n\
-      --s-max           " FMT_KEY(SEP_BIN_MAX) "     Double\n\
-        Specify the upper limit of linear separation (or s_perp) bins\n\
-      --s-step          " FMT_KEY(SEP_BIN_SIZE) "    Double\n\
-        Specify the width of linear separation (or s_perp) bins\n\
-      --mu-num          " FMT_KEY(MU_BIN_NUM) "      Integer\n\
-        Specify the number of linear mu bins in the range [0,1"
-#ifdef WITH_MU_ONE
-      "]"
-#else
-      ")"
-#endif
-"\n\
-      --pi-file         " FMT_KEY(PI_BIN_FILE) "     String\n\
-        Specify the file defining edges of pi (a.k.a. s_para) bins\n\
-      --pi-min          " FMT_KEY(PI_BIN_MIN) "      Double\n\
-        Specify the lower limit of linear pi bins\n\
-      --pi-max          " FMT_KEY(PI_BIN_MAX) "      Double\n\
-        Specify the upper limit of linear pi bins\n\
-      --pi-step         " FMT_KEY(PI_BIN_SIZE) "     Double\n\
-        Specify the width of linear pi bins\n\
-  -F, --out-format      " FMT_KEY(OUTPUT_FORMAT) "   Integer\n\
-        Format of the output pair count files\n\
-  -O, --overwrite       " FMT_KEY(OVERWRITE) "       Integer\n\
-        Indicate whether to overwrite existing output files\n\
-  -v, --verbose         " FMT_KEY(VERBOSE) "         Boolean\n\
-        Indicate whether to display detailed standard outputs\n\
-Consult the -t option for more information on the parameters\n\
-Github repository: https://github.com/cheng-zhao/FCFC\n\
-Licence: MIT\n",
-      DEFAULT_CONF_FILE);
-  exit(0);
-}
-
-/******************************************************************************
-Function `version`:
-  Print the version information.
-******************************************************************************/
-static void version(void *args) {
-  (void) args;
-  printf(FCFC_LOGO "\n\x1B[35C\x1B[33;1mv" FCFC_VERSION "\n\x1B[32C"
-      FCFC_CODE_NAME "\x1B[0m\n"
-      "\n- Parallelization schemes\n"
-      "  * MPI: "
-#ifdef MPI
-      "enabled\n"
-#else
-      "disabled (enable with -DMPI)\n"
-#endif
-      "  * OpenMP: "
-#ifdef OMP
-      "enabled\n"
-#else
-      "disabled (enable with -DOMP)\n"
-#endif
-      "  * SIMD: "
-#if             FCFC_SIMD  ==  FCFC_SIMD_NONE
-      "disabled (enable with -DWITH_SIMD)"
-#elif           FCFC_SIMD  ==  FCFC_SIMD_AVX
-      "AVX"
-  #ifdef        FCFC_SIMD_FMA
-      " + FMA"
-  #endif
-#elif           FCFC_SIMD  ==  FCFC_SIMD_AVX2
-      "AVX2"
-  #ifdef        FCFC_SIMD_FMA
-      " + FMA"
-  #endif
-#else        /* FCFC_SIMD  ==  FCFC_SIMD_AVX512 */
-      "AVX-512F"
-  #ifdef        FCFC_SIMD_AVX512DQ
-      " + AVX-512DQ"
-  #endif
-#endif
-      "\n- Compilation options\n"
-      "  * Floating-point precision: "
-#ifdef SINGLE_PREC
-      "single (-DSINGLE_PREC enabled)\n"
-#else
-      "double (-DSINGLE_PREC disabled)\n"
-#endif
-      "  * (s,mu) pairs with mu = 1: "
-#ifdef WITH_MU_ONE
-      "included (-DWITH_MU_ONE enabled)\n"
-#else
-      "excluded (-DWITH_MU_ONE disabled)\n"
-#endif
-      "- External libraries\n"
-      "  * CFITSIO: "
-#ifdef WITH_CFITSIO
-      "enabled\n"
-#else
-      "disabled (enable with -DWITH_CFITSIO)\n"
-#endif
-      "  * HDF5: "
-#ifdef WITH_HDF5
-      "enabled\n"
-#else
-      "disabled (enable with -DWITH_HDF5)\n"
-#endif
-      "\n\
-- Copyright (c) 2020 -- 2022 Cheng ZHAO.\n\
-- Github repository: https://github.com/cheng-zhao/FCFC\n\
-- Licence: MIT\n");
-  exit(0);
-}
-
-/******************************************************************************
-Function `conf_template`:
-  Print a template configuration file.
-******************************************************************************/
-void conf_template(void *args) {
-  (void) args;
-  printf("# Configuration file for " FCFC_CODE_NAME " (default: `"
-DEFAULT_CONF_FILE "').\n\
-# Format: keyword = value # comment\n\
-#     or: keyword = [element1, element2]\n\
-#    see: https://github.com/cheng-zhao/libcfg for details.\n\
-# Some of the entries allow expressions, see\n\
-#         https://github.com/cheng-zhao/libast for details.\n\
-# NOTE that command line options have priority over this file.\n\
-# Unnecessary entries can be left unset.\n\
-\n\
-##########################################\n\
-#  Specifications of the input catalogs  #\n\
-##########################################\n\
-\n\
-CATALOG         = \n\
-    # Filename of the input catalogs, string or string array.\n\
-CATALOG_LABEL   = \n\
-    # Label of the input catalogs, must be non-repetitive uppercase letters.\n\
-    # Character, same dimension as `CATALOG`.\n\
-    # If unset, catalogs are labelled in alphabetical order, i.e. [A,B,...].\n\
-CATALOG_TYPE    = \n\
-    # File format of the input catalogs (unset: %d).\n\
-    # Integer, same dimension as `CATALOG`.\n\
-    # Allowed values are:\n\
-    # * %d: ASCII text file"
-#ifdef WITH_CFITSIO
-    ";\n    # * %d: FITS table"
-#endif
-#ifdef WITH_HDF5
-    ";\n    # * %d: HDF5 file"
-#endif
-".\nASCII_SKIP      = \n\
-    # Number of lines to be skipped for ASCII catalogs (unset: %ld).\n\
-    # Long integer, same dimension as `CATALOG`.\n\
-ASCII_COMMENT   = \n\
-    # Character indicating comment lines for ASCII catalogs (unset: '%c%s.\n\
-    # Character, same dimension as `CATALOG`.\n\
-    # Empty character ('') for disabling comments.\n\
-ASCII_FORMATTER = \n\
-    # C99-style formatter for parsing lines of ASCII catalogs.\n\
-    # String, same dimension as `DATA_CATALOG` (e.g. \"%%d %%ld %%f %%lf %%s\").\n\
-    # If a column is suppressed by *, it is not counted for the column number.\n\
-    # E.g., for \"%%d %%*s %%f\", the float number corresponds to column %c2.\n\
-    # See https://en.cppreference.com/w/c/io/fscanf for details on the format.\n\
-POSITION        = \n\
-    # 3-D comoving coordinates, in the order of {x,y,z}.\n\
-    # String array, 3 times the length of `CATALOG`.\n\
-    # They can be column indicator or expressions, e.g.,\n\
-    #     \"(%c1 * %c%c10%c) %% 100\" / \"%c%cRA%c\" / \"%c%cgroup/dataset%c2%c%c\"\n\
-    # Allowed values enclosed by %c%c%c:\n\
-    # * long integer: column number of an ASCII file (starting from 1);\n\
-    # * string: column name of a FITS file;\n\
-    # * string%cinteger%c: dataset name and column index (starting from 1)\n\
-    #                    of an HDF5 file.\n\
-WEIGHT          = \n\
-    # Weights for pair counts (unset: 1, i.e. no weight).\n\
-    # Column indicator or expression, same dimension as `DATA_CATALOG`.\n\
-SELECTION       = \n\
-    # Selection criteria for the catalogs (unset: no selection).\n\
-    # Logical expression, same dimension as `CATALOG` (e.g. \"%c3 > 0.5\").\n\
-BOX_SIZE        = \n\
-    # Side lengths of the periodic box for the input catalogs.\n\
-    # Double-precision number (for cubic box) or 3-element double array.\n\
-\n\
-################################################################\n\
-#  Configurations for the 2-point correlation function (2PCF)  #\n\
-################################################################\n\
-\n\
-DATA_STRUCT     = \n\
-    # Data structure for evaluating pair counts, integer (unset: %d).\n\
-    # Allowed values are:\n\
-    # * %d: k-d tree;\n\
-    # * %d: ball tree.\n\
-BINNING_SCHEME  = \n\
-    # Binning scheme of the 2PCFs, integer (unset: %d).\n\
-    # Allowed values are:\n\
-    # * %d: isotropic separation bins;\n\
-    # * %d: (s, mu) bins (required by 2PCF multipoles);\n\
-    # * %d: (s_perp, pi) bins (required by projected 2PCFs);\n\
-PAIR_COUNT      = \n\
-    # Identifiers of pairs to be counted or read, string or string array.\n\
-    # Pairs are labelled by their source catalogs.\n\
-    # E.g., \"DD\" denotes auto pairs from the catalog 'D',\n\
-    # while \"DR\" denotes cross pairs from catalogs 'D' and 'R'.\n\
-PAIR_COUNT_FILE = \n\
-    # Name of the files for storing pair counts.\n\
-    # String, same dimension as `PAIR_COUNT`.\n\
-    # Depending on `OVERWRITE`, pair counts can be read from existing files.\n\
-CF_ESTIMATOR    = \n\
-    # Estimator of the 2PCFs to be evaluated, string or string array.\n\
-    # It must be an expression with pair identifiers.\n\
-    # In particular, \"%c%c\" denotes the analytical RR pair counts.\n\
-CF_OUTPUT_FILE  = \n\
-    # Name of the files for saving 2PCFs with the desired binning scheme.\n\
-    # String, same dimension as `CF_ESTIMATOR`.\n\
-MULTIPOLE       = \n\
-    # Orders of Legendre multipoles to be evaluated, integer or integer array.\n\
-MULTIPOLE_FILE  = \n\
-    # Name of the files for saving 2PCF multipoles.\n\
-    # String, same dimension as `CF_ESTIMATOR`.\n\
-PROJECTED_CF    = \n\
-    # Boolean option, indicate whether computing the projected 2PCFs (unset: %c).\n\
-PROJECTED_FILE  = \n\
-    # Name of the files for saving projected 2PCFs.\n\
-    # String, same dimension as `CF_ESTIMATOR`.\n\
-\n\
-#############################\n\
-#  Definitions of the bins  #\n\
-#############################\n\
-\n\
-SEP_BIN_FILE    = \n\
-    # Filename of the table defining edges of separation (or s_perp) bins.\n\
-    # It mush be a text file with the first two columns being\n\
-    # the lower and upper limits of the distance bins, respectively.\n\
-    # Lines starting with '%c' are omitted.\n\
-SEP_BIN_MIN     = \n\
-SEP_BIN_MAX     = \n\
-SEP_BIN_SIZE    = \n\
-    # Lower and upper limits, and width of linear separation (or s_perp) bins.\n\
-    # Double-precision numbers. They are only used if `SEP_BIN_FILE` is unset.\n\
-MU_BIN_NUM      = \n\
-    # Number of linear mu bins in the range [0,1"
-#ifdef WITH_MU_ONE
-    "]"
-#else
-    ")"
-#endif
-", integer.\n\
-PI_BIN_FILE     = \n\
-    # Filename of the table defining edges of pi (a.k.a. s_para) bins.\n\
-    # Lines starting with '%c' are omitted.\n\
-PI_BIN_MIN      = \n\
-PI_BIN_MAX      = \n\
-PI_BIN_SIZE     = \n\
-    # Lower and upper limits, and width of linear pi bins.\n\
-    # Double-precision numbers. They are only used if `PI_BIN_FILE` is unset.\n\
-\n\
-####################\n\
-#  Other settings  #\n\
-####################\n\
-\n\
-OUTPUT_FORMAT   = \n\
-    # Format of the output `PAIR_COUNT_FILE`, integer (unset: %d).\n\
-    # Allowed values are:\n\
-    # * %d: FCFC binary format;\n\
-    # * %d: ASCII text format.\n\
-OVERWRITE       = \n\
-    # Flag indicating whether to overwrite existing files, integer (unset: %d).\n\
-    # Allowed values are:\n\
-    # * %d: quit the program when an output file exist;\n\
-    # * %d: overwrite 2PCF files silently, but keep existing pair count files;\n\
-    # * %d or larger: overwrite all files silently;\n\
-    # * negative: notify for decisions, and the maximum allowed number of failed\n\
-    #             trials are given by the absolute value of this number.\n\
-VERBOSE         = \n\
-    # Boolean option, indicate whether to show detailed outputs (unset: %c).\n",
-      DEFAULT_FILE_TYPE, FCFC_FFMT_ASCII,
-#ifdef WITH_CFITSIO
-      FCFC_FFMT_FITS,
-#endif
-#ifdef WITH_HDF5
-      FCFC_FFMT_HDF5,
-#endif
-      (long) DEFAULT_ASCII_SKIP,
-      DEFAULT_ASCII_COMMENT ? DEFAULT_ASCII_COMMENT : '\'',
-      DEFAULT_ASCII_COMMENT ? "')" : ")",
-      AST_VAR_FLAG, AST_VAR_FLAG, AST_VAR_FLAG, AST_VAR_START, AST_VAR_END,
-      AST_VAR_FLAG, AST_VAR_START, AST_VAR_END,
-      AST_VAR_FLAG, AST_VAR_START, FCFC_COL_IDX_START, FCFC_COL_IDX_END,
-      AST_VAR_END, AST_VAR_FLAG, AST_VAR_START, AST_VAR_END,
-      FCFC_COL_IDX_START, FCFC_COL_IDX_END, AST_VAR_FLAG,
-      DEFAULT_STRUCT, FCFC_STRUCT_KDTREE, FCFC_STRUCT_BALLTREE,
-      DEFAULT_BINNING, FCFC_BIN_ISO,
-      FCFC_BIN_SMU, FCFC_BIN_SPI, FCFC_SYM_ANA_RR, FCFC_SYM_ANA_RR,
-      DEFAULT_PROJECTED_CF ? 'T' : 'F', FCFC_READ_COMMENT, FCFC_READ_COMMENT,
-      DEFAULT_OUTPUT_FORMAT, FCFC_OFMT_BIN, FCFC_OFMT_ASCII,
-      DEFAULT_OVERWRITE, FCFC_OVERWRITE_NONE, FCFC_OVERWRITE_CFONLY,
-      FCFC_OVERWRITE_ALL, DEFAULT_VERBOSE ? 'T' : 'F');
-  exit(0);
-}
-
-
-/*============================================================================*\
-                      Function for reading configurations
-\*============================================================================*/
-
-/******************************************************************************
 Function `conf_init`:
   Initialise the structure for storing configurations.
 Return:
@@ -474,13 +116,6 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
   cfg_t *cfg = cfg_init();
   if (!cfg) P_CFG_ERR(cfg);
 
-  /* Functions to be called via command line flags. */
-  const cfg_func_t funcs[] = {
-    {'h', "help"        , usage            ,            NULL},
-    {'V', "version"     , version          ,            NULL},
-    {'t', "template"    , conf_template    ,            NULL}
-  };
-
   /* Configuration parameters. */
   const cfg_param_t params[] = {
     {'c', "conf"        , "CONFIG_FILE"    , CFG_DTYPE_STR , &conf->fconf   },
@@ -502,10 +137,9 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
     {'v', "verbose"     , "VERBOSE"        , CFG_DTYPE_BOOL, &conf->verbose }
   };
 
-  /* Register functions and parameters. */
-  if (cfg_set_funcs(cfg, funcs, sizeof(funcs) / sizeof(funcs[0])))
-      P_CFG_ERR(cfg);
-  P_CFG_WRN(cfg);
+  /* Register parameters.  (The CLI-only help/version/template functions
+   * of the original program are not registered: in library mode every
+   * option arrives through the validated keyword arguments.) */
   if (cfg_set_params(cfg, params, sizeof(params) / sizeof(params[0])))
       P_CFG_ERR(cfg);
   P_CFG_WRN(cfg);
@@ -517,9 +151,17 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
   P_CFG_WRN(cfg);
 
   /* Read parameters from configuration file. */
-  if (!cfg_is_set(cfg, &conf->fconf)) conf->fconf = DEFAULT_CONF_FILE;
-  if (access(conf->fconf, R_OK))
-    P_WRN("cannot access the configuration file: `%s'\n", conf->fconf);
+  bool use_default_conf = false;
+  if (!cfg_is_set(cfg, &conf->fconf)) {
+    conf->fconf = DEFAULT_CONF_FILE;
+    use_default_conf = true;
+  }
+  if (access(conf->fconf, R_OK)) {
+    if (!use_default_conf) {
+      P_ERR("cannot access the configuration file: `%s'\n", conf->fconf);
+      P_CFG_ERR(cfg);
+    }
+  }
   else if (cfg_read_file(cfg, conf->fconf, FCFC_PRIOR_FILE)) P_CFG_ERR(cfg);
   P_CFG_WRN(cfg);
 
@@ -646,15 +288,10 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
   
   /* CATALOG_LABEL */
   num = cfg_get_size(cfg, &conf->label);
-  conf->ninput = cfg_get_size(cfg, &conf->label);
+  conf->ninput = num;
   if (!num) {
-    char *tmp = realloc(conf->label, conf->ninput * sizeof *tmp);
-    if (!tmp) {
-      P_ERR("failed to allocate memory for " FMT_KEY(CATALOG_LABEL) "\n");
-      return FCFC_ERR_MEMORY;
-    }
-    conf->label = tmp;
-    for (int i = 0; i < conf->ninput; i++) conf->label[i] = 'A' + i;
+    P_ERR("no " FMT_KEY(CATALOG_LABEL) " is specified\n");
+    return FCFC_ERR_CFG;
   }
   else {
     CHECK_ARRAY_LENGTH(CATALOG_LABEL, cfg, conf->label, "%c", num,
@@ -681,9 +318,23 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     P_ERR("failed to allocate memory for " FMT_KEY(WEIGHT) "\n");
     return FCFC_ERR_MEMORY;
   }
-  // We will manage weighting defaults from p/cython 
-  for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = true;
-
+  /* The Python wrapper passes WEIGHT = '1' for catalogues whose weights
+   * are all exactly 1, which enables the (faster and exact) integer
+   * counting path; any other value enables weighted counting. */
+  if ((num = cfg_get_size(cfg, &conf->wt))) {
+    CHECK_STR_ARRAY_LENGTH(WEIGHT, cfg, conf->wt, num, conf->ninput);
+    for (int i = 0; i < conf->ninput; i++) {
+      /* Disable weighting if the weight is 1 or empty. */
+      if ((conf->wt[i][0] == '1' && conf->wt[i][1] == '\0') ||
+          (((conf->wt[i][0] == '\'' && conf->wt[i][1] == '\'') ||
+          (conf->wt[i][0] == '"' && conf->wt[i][1] == '"')) &&
+          conf->wt[i][2] == '\0')) conf->has_wt[i] = false;
+      else conf->has_wt[i] = true;
+    }
+  }
+  else {
+    for (int i = 0; i < conf->ninput; i++) conf->has_wt[i] = true;
+  }
   /* BOX_SIZE */
   CHECK_EXIST_ARRAY(BOX_SIZE, cfg, &conf->bsize, num);
   if (num == 1) {
@@ -921,79 +572,10 @@ static void conf_print(const CONF *conf
   printf("\n  CONFIG_FILE     = %s", conf->fconf);
 
   /* Input catalogs. */
-//  printf("\n  CATALOG         = %s", conf->input[0]);
-//  for (int i = 1; i < conf->ninput; i++)
-//    printf("\n                    %s", conf->input[i]);
   printf("\n  CATALOG_LABEL   = '%c'", conf->label[0]);
   for (int i = 1; i < conf->ninput; i++) printf(" , '%c'", conf->label[i]);
 
-//  const char *ftype[] = {"ASCII", "FITS", "HDF5"};
-//  const int ntype = sizeof(ftype) / sizeof(ftype[0]);
-//  if (!conf->ftype) {
-//    printf("\n  CATALOG_TYPE    = %d (%s)",
-//        DEFAULT_FILE_TYPE,
-//        DEFAULT_FILE_TYPE < ntype ? ftype[DEFAULT_FILE_TYPE] : "unknown");
-//  }
-//  else {
-//    printf("\n  CATALOG_TYPE    = %d (%s)",
-//        conf->ftype[0],
-//        conf->ftype[0] < ntype ? ftype[conf->ftype[0]] : "unknown");
-//    for (int i = 1; i < conf->ninput; i++) {
-//      printf("\n                    %d (%s)",
-//          conf->ftype[i],
-//          conf->ftype[i] < ntype ? ftype[conf->ftype[i]] : "unknown");
-//    }
-//  }
-//
-//  if (conf->ascii) {
-//    if (!conf->skip) {
-//      printf("\n  ASCII_SKIP      = %ld", (long) DEFAULT_ASCII_SKIP);
-//    }
-//    else {
-//      printf("\n  ASCII_SKIP      = %ld", conf->skip[0]);
-//      for (int i = 1; i < conf->ninput; i++) printf(" , %ld", conf->skip[i]);
-//    }
-//
-//    if (!conf->comment) {
-//      if (DEFAULT_ASCII_COMMENT == 0) printf("\n  ASCII_COMMENT   = ''");
-//      else printf("\n  ASCII_COMMENT   = '%c'", DEFAULT_ASCII_COMMENT);
-//    }
-//    else {
-//      int type = conf->ftype ? conf->ftype[0] : DEFAULT_FILE_TYPE;
-//      if (type != FCFC_FFMT_ASCII || conf->comment[0] == 0)
-//        printf("\n  ASCII_COMMENT   = ''");
-//      else printf("\n  ASCII_COMMENT   = '%c'", conf->comment[0]);
-//      for (int i = 1; i < conf->ninput; i++) {
-//        type = conf->ftype ? conf->ftype[i] : DEFAULT_FILE_TYPE;
-//        if (type != FCFC_FFMT_ASCII || conf->comment[i] == 0) printf(" , ''");
-//        else printf(" , '%c'", conf->comment[i]);
-//      }
-//    }
-//
-//    printf("\n  ASCII_FORMATTER = %s", conf->fmtr[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->fmtr[i]);
-//  }
 
-  //printf("\n  POSITION        = %s , %s , %s",
-  //    conf->pos[0], conf->pos[1], conf->pos[2]);
-  //
-  //for (int i = 1; i < conf->ninput; i++) {
-  //  printf("\n                    %s , %s , %s",
-  //      conf->pos[i * 3], conf->pos[i * 3 + 1], conf->pos[i * 3 + 2]);
-  //}
-
-//  if (conf->wt) {
-//    printf("\n  WEIGHT          = %s", conf->wt[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->wt[i]);
-//  }
-//
-//  if (conf->sel) {
-//    printf("\n  SELECTION       = %s", conf->sel[0]);
-//    for (int i = 1; i < conf->ninput; i++)
-//      printf("\n                    %s", conf->sel[i]);
-//  }
   printf("\n  BOX_SIZE        = " OFMT_DBL " , " OFMT_DBL " , " OFMT_DBL,
       conf->bsize[0], conf->bsize[1], conf->bsize[2]);
 
@@ -1100,8 +682,6 @@ CONF *load_conf(const int argc, char *const *argv
     return NULL;
   }
 
-  printf("Loading configurations ...");
-  fflush(stdout);
 
   if (conf_verify(cfg, conf)) {
     if (cfg_is_set(cfg, &conf->fconf)) free(conf->fconf);
@@ -1120,7 +700,6 @@ CONF *load_conf(const int argc, char *const *argv
   if (cfg_is_set(cfg, &conf->fconf)) free(conf->fconf);
   cfg_destroy(cfg);
 
-  printf(FMT_DONE);
 #ifdef MPI
   fflush(stdout);
 #endif
