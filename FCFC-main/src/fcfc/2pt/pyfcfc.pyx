@@ -65,6 +65,12 @@ cdef extern from "pyfcfc_helpers.h":
     CF *compute_cf(int argc, char *argv[], DATA *dat, int ncat,
                    double *sbins, int ns, double *pbins, int np_,
                    int nmu) nogil
+    int pyfcfc_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
+                        double *sbins, int ns, double *pbins, int np_,
+                        int nmu, const char *pair, const double *g,
+                        double *gx0, double *gx1, double *gw0, double *gw1,
+                        double *gsigma) nogil
+
 
 
 def simd_info():
@@ -86,10 +92,15 @@ def simd_info():
 
 # Valid FCFC configuration options for this component: the command-line
 # long option names (with '-' replaced by '_' when passed as keywords).
-_OPTIONS = frozenset(['bin', 'cf', 'cf-output', 'cmvdst-err', 'cmvdst-file', 'conf', 'convert', 'data-struct', 'eos-w', 'label', 'mp-output', 'multipole', 'omega-l', 'omega-m', 'out-format', 'overwrite', 'pair', 'pair-output', 'verbose', 'weight', 'wp', 'wp-output'])
+_OPTIONS = frozenset(['bin', 'cf', 'cf-output', 'cmvdst-err', 'cmvdst-file', 'conf', 'convert', 'data-struct', 'eos-w', 'label', 'mp-output', 'multipole', 'omega-l', 'omega-m', 'out-format', 'overwrite', 'pair', 'pair-output', 'soft-hist', 'soft-sigma', 'verbose', 'weight', 'wp', 'wp-output'])
 
 # Friendly hints for frequent mistakes.
 _OPTION_HINTS = {
+    'soft': "the soft histogramming flag is called 'soft_hist'",
+    'soft_histogram': "the soft histogramming flag is called 'soft_hist'",
+    'sigma': "the Gaussian kernel width is called 'soft_sigma'",
+    'soft_kernel': "the Gaussian kernel width is called 'soft_sigma'",
+    'kernel_sigma': "the Gaussian kernel width is called 'soft_sigma'",
     'nthreads': ("the number of OpenMP threads is set through the "
                  "OMP_NUM_THREADS environment variable"),
     'num_threads': ("the number of OpenMP threads is set through the "
@@ -301,7 +312,8 @@ cdef dict _extract_results(CF *cf):
 #  Main entry point
 # ============================================================================
 
-def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1, **kwargs):
+def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
+                  soft_hist=False, soft_sigma=None, **kwargs):
     """Evaluate pair counts and correlation functions with FCFC.
 
     Parameters
@@ -326,12 +338,41 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1, **kwargs):
     nmu : int, optional
         Number of mu bins in [0, 1), used by the (s, mu) binning scheme
         (``bin=1``).
+    soft_hist : bool, optional
+        Enable the soft histogramming pair counting method
+        (experimental).  Instead of assigning every pair to a single
+        separation bin, the weight of the pair (1 or w1 * w2) is spread
+        over *all* separation bins with the softmax of a Gaussian kernel
+        centred on the bins,
+
+            W_i = softmax_i(-(s - c_i)^2 / (2 * soft_sigma^2)),
+
+        so that the total weight of the pairs with smin <= s < smax is
+        conserved.  Pair counts become fractional (they are always
+        accumulated in double precision), while the mu (``bin=1``) and
+        pi (``bin=2``) dimensions remain hard-binned.  The tree
+        traversal and the pair selection are identical to the standard
+        method, so the two histograms are directly comparable.  The
+        soft kernels are scalar but OpenMP-parallel; for linear bins
+        the kernel weights are generated with an exact multiplicative
+        recurrence over an adaptive window, costing O(min(ns, sigma /
+        ds)) per pair: typically a few times slower than the standard
+        (hard) counting kernels.  Default: False.
+    soft_sigma : float, optional
+        Width of the Gaussian kernel for soft histogramming, in the
+        units of ``sedges`` (i.e. before the internal rescaling).  Only
+        used with ``soft_hist=True``; the default (None) selects half
+        the mean separation bin width.
     **kwargs :
         FCFC configuration options, following the command-line option
         names of FCFC with ``-`` replaced by ``_`` (e.g. ``box=1000``,
         ``pair=['DD', 'DR', 'RR']``, ``cf=['(DD - 2*DR + RR) / RR']``,
         ``multipole=[0, 2, 4]``, ``verbose=False``).  Python booleans are
         converted to 'T'/'F', and sequences to FCFC array literals.
+        Soft histogramming is controlled by the dedicated `soft_hist`
+        and `soft_sigma` arguments (any other FCFC option, e.g.
+        ``data_struct``, ``weight`` or ``conf``, is passed through
+        here).
 
     Returns
     -------
@@ -372,6 +413,27 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1, **kwargs):
     # Validate and normalize the inputs.
     # ------------------------------------------------------------------
     _validate_options(kwargs)
+
+    # ------------------------------------------------------------------
+    # Soft histogramming (optional pair counting method): validate the
+    # dedicated keyword arguments and forward them as FCFC options.
+    # ------------------------------------------------------------------
+    soft_hist = bool(soft_hist)
+    if soft_sigma is not None:
+        if isinstance(soft_sigma, bool) or not isinstance(
+                soft_sigma, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_sigma must be a number, got "
+                            f"{type(soft_sigma).__name__}")
+        sig = float(soft_sigma)
+        if not np.isfinite(sig) or sig <= 0:
+            raise ValueError(f"soft_sigma must be a positive finite "
+                             f"number, got {soft_sigma!r}")
+        if not soft_hist:
+            raise ValueError("soft_sigma is only meaningful with soft "
+                             "histogramming: pass soft_hist=True as well")
+        kwargs['soft_sigma'] = sig
+    if soft_hist:
+        kwargs['soft_hist'] = True
 
     ncat = len(data_cats)
     if ncat != len(data_wts):
@@ -536,4 +598,255 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1, **kwargs):
         if argv is not NULL:
             free(argv)
         if not dat_owned_by_cf:
+            pyfcfc_data_free(dat, ncat)
+
+
+def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
+                  pair='DD', cotangent=None, soft_sigma=None,
+                  normalized=False, grad_wts=False, grad_sigma=False,
+                  **kwargs):
+    """Reverse-mode derivative (VJP) of the soft histogram pair counts.
+
+    Adjoint of the soft histogramming method (see ``py_compute_cf`` with
+    ``soft_hist=True``): given the cotangents (upstream gradients) of a
+    scalar loss with respect to the pair count bins of one pair count,
+    return the cotangents of the input catalogue coordinates, i.e. the
+    vector-Jacobian product that a reverse-mode autodiff engine needs to
+    continue backpropagation through the pair counting step.  The
+    discrete choices of the forward pass (range checks, mu / pi bins,
+    kernel window) are held constant, as in any autodiff engine.
+
+    Parameters
+    ----------
+    data_cats, data_wts, sedges, pedges, nmu :
+        As in :func:`py_compute_cf`, and must match the forward call
+        being differentiated (positions are promoted to float64).
+    pair : str
+        The pair count whose bins the cotangents refer to, e.g. ``'DD'``
+        or ``'DR'``; must be one of the pairs implied by the labels
+        (passed via ``label`` in ``kwargs`` when not default).
+    cotangent : array_like
+        Upstream gradients with the same shape as
+        ``results['pairs'][pair]`` (i.e. (ns,), (ns, nmu) or (ns, np)).
+    soft_sigma : float, optional
+        Kernel width used in the forward pass (must match); the default
+        (None) is half the mean bin width, as in the forward.
+    normalized : bool, optional
+        Set True if `cotangent` refers to the *normalized* pair counts
+        (``results['pairs'][pair]``) instead of the raw ones; the
+        cotangents are then rescaled by 1 / normalization.  With
+        ``grad_wts`` the normalization's own weight dependence is not
+        differentiated, so combining the two raises.
+    grad_wts, grad_sigma : bool, optional
+        Also return the cotangents of the catalogue weights (the
+        weighted counting path is used, i.e. ``weight='w'``) and of
+        `soft_sigma`.
+    **kwargs :
+        FCFC options as in :func:`py_compute_cf` (``box``, ``bin``,
+        ``label``, ``data_struct``, ...).
+
+    Returns
+    -------
+    dict
+        ``'grads'``: dict label -> (N, 3) coordinate cotangents for the
+        two catalogues of `pair`; ``'grad_wts'``: dict label -> (N,)
+        weight cotangents or None; ``'grad_sigma'``: float or None.
+    """
+    _validate_options(kwargs)
+    if cotangent is None:
+        raise ValueError("cotangent is required")
+    if 'conf' in kwargs and ('label' not in kwargs or 'bin' not in kwargs):
+        raise ValueError("soft_hist_vjp needs explicit `label' and `bin' "
+                         "arguments when a configuration file is used")
+    if normalized and grad_wts:
+        raise ValueError("normalized cotangents with grad_wts are not "
+                         "supported: the normalization's weight "
+                         "dependence is not differentiated; differentiate "
+                         "the raw pair counts instead")
+
+    ncat = len(data_cats)
+    if ncat != len(data_wts):
+        raise ValueError(f"got {ncat} catalogs but {len(data_wts)} weight "
+                         "arrays")
+    if 'label' in kwargs:
+        kwargs['label'] = _validate_labels(kwargs['label'], ncat)
+    elif 'conf' not in kwargs:
+        kwargs['label'] = _validate_labels(None, ncat)
+    labels = list(kwargs.get('label', [chr(ord('A') + i) for i in range(ncat)]))
+    kwargs.setdefault('verbose', False)
+    if 'pair' in kwargs:
+        raise ValueError("the pair count to differentiate is passed via "
+                         "the `pair' positional argument of "
+                         "soft_hist_vjp, not as an FCFC option")
+    kwargs['pair'] = [pair]
+    kwargs['soft_hist'] = True
+    if soft_sigma is not None:
+        if isinstance(soft_sigma, bool) or not isinstance(
+                soft_sigma, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_sigma must be a number, got "
+                            f"{type(soft_sigma).__name__}")
+        sig = float(soft_sigma)
+        if not np.isfinite(sig) or sig <= 0:
+            raise ValueError(f"soft_sigma must be a positive finite "
+                             f"number, got {soft_sigma!r}")
+        kwargs['soft_sigma'] = sig
+    # the VJP corresponds to the weighted counting path
+    kwargs.setdefault('weight', ['w'] * ncat)
+
+    pair = str(pair).strip().upper()
+    if len(pair) != 2 or pair[0] not in labels or pair[1] not in labels:
+        raise ValueError(f"invalid pair {pair!r} for labels {labels}")
+    ia, ib = labels.index(pair[0]), labels.index(pair[1])
+
+    # Catalogues (float64 only: the VJP is a double-precision path).
+    cdef size_t i
+    pos_list, wt_list = [], []
+    for i in range(ncat):
+        p = np.ascontiguousarray(data_cats[i], dtype=np.float64)
+        if p.ndim != 2 or p.shape[1] != 3:
+            raise ValueError(f"catalog {i}: positions must have shape "
+                             f"(N, 3), got {np.shape(data_cats[i])}")
+        w = np.ascontiguousarray(data_wts[i], dtype=np.float64).reshape(-1)
+        if w.shape[0] != p.shape[0]:
+            raise ValueError(f"catalog {i}: got {p.shape[0]} positions but "
+                             f"{w.shape[0]} weights")
+        pos_list.append(p)
+        wt_list.append(w)
+
+    sedges_arr = np.array(sedges, dtype=np.float64, order='C').reshape(-1)
+    if sedges_arr.size < 2 or not np.all(np.isfinite(sedges_arr)) or \
+            np.any(np.diff(sedges_arr) <= 0) or sedges_arr[0] < 0:
+        raise ValueError("sedges must be finite, non-negative and strictly "
+                         "increasing")
+    cdef int ns = sedges_arr.size - 1
+    cdef double[::1] sedges_mv = sedges_arr
+
+    cdef double *pedges_ptr = NULL
+    cdef int npi = 0
+    pedges_arr = None
+    cdef double[::1] pedges_mv
+    if pedges is not None:
+        pedges_arr = np.array(pedges, dtype=np.float64,
+                              order='C').reshape(-1)
+        if pedges_arr.size < 2 or not np.all(np.isfinite(pedges_arr)) or \
+                np.any(np.diff(pedges_arr) <= 0) or pedges_arr[0] < 0:
+            raise ValueError("pedges must be finite, non-negative and "
+                             "strictly increasing")
+        pedges_mv = pedges_arr
+        pedges_ptr = &pedges_mv[0]
+        npi = pedges_arr.size - 1
+
+    bintype = int(kwargs.get('bin', 0))
+    cot = np.asarray(cotangent, dtype=np.float64)
+    if bintype == 1:
+        exp_shape = (ns, int(nmu))
+    elif bintype == 2:
+        exp_shape = (ns, npi)
+    else:
+        exp_shape = (ns,)
+    if cot.shape != exp_shape:
+        raise ValueError(f"cotangent must have shape {exp_shape}, got "
+                         f"{cot.shape}")
+    if not np.all(np.isfinite(cot)):
+        raise ValueError("cotangent must be finite")
+    # internal bin layout: index = s_idx + second_idx * ns; copy into a
+    # writable buffer (autodiff engines hand over read-only views)
+    g_arr = np.array(cot if cot.ndim == 1 else cot.T, dtype=np.float64,
+                     order='C', copy=True).reshape(-1)
+    cdef double[::1] g_mv = g_arr
+
+    if normalized:
+        wts = [wt_list[ia], wt_list[ib]]
+        if ia == ib:
+            norm = wts[0].sum() ** 2 - (wts[0] ** 2).sum()
+        else:
+            norm = wts[0].sum() * wts[1].sum()
+        g_arr = np.ascontiguousarray(g_arr / norm)
+        g_mv = g_arr
+
+    gx = [np.zeros((pos_list[ia].shape[0], 3)),
+          np.zeros((pos_list[ib].shape[0], 3))]
+    if ia == ib:
+        gx[1] = gx[0]           # auto pair: one buffer, both sides
+    gw = [None, None]
+    if grad_wts:
+        gw = [np.zeros(pos_list[ia].shape[0]), np.zeros(pos_list[ib].shape[0])]
+        if ia == ib:
+            gw[1] = gw[0]
+    gsig = np.zeros(1) if grad_sigma else None
+
+    cdef double[:, ::1] gx0_mv = gx[0]
+    cdef double[:, ::1] gx1_mv = gx[1]
+    cdef double[::1] gw0_mv, gw1_mv, gsig_mv
+    cdef double *gw0_ptr = NULL
+    cdef double *gw1_ptr = NULL
+    cdef double *gsig_ptr = NULL
+    if grad_wts:
+        gw0_mv = gw[0]
+        gw1_mv = gw[1]
+        gw0_ptr = &gw0_mv[0]
+        gw1_ptr = &gw1_mv[0]
+    if grad_sigma:
+        gsig_mv = gsig
+        gsig_ptr = &gsig_mv[0]
+
+    # ------------------------------------------------------------------
+    # Copy the catalogues and build the argument list (as py_compute_cf).
+    # ------------------------------------------------------------------
+    cdef DATA *dat = pyfcfc_data_alloc(ncat)
+    if dat is NULL:
+        raise MemoryError("failed to allocate memory for the input catalogs")
+    cdef char **argv = NULL
+    cdef int argc
+    cdef int e
+    cdef const double[:, ::1] pos_d
+    cdef const double[::1] wt_d
+    cdef int c_ncat = ncat
+    cdef int c_nmu = int(nmu)
+    cdef bint dat_owned = False
+    pair_bytes = pair.encode('ascii')
+    cdef const char *pair_c = pair_bytes
+    try:
+        for i in range(ncat):
+            pos_d = pos_list[i]
+            wt_d = wt_list[i]
+            e = pyfcfc_data_fill(dat, i, pos_d.shape[0], &pos_d[0, 0],
+                                 &wt_d[0])
+            if e:
+                raise MemoryError(f"failed to copy catalog {i} into C memory")
+        arg_bytes = []
+        for key, val in kwargs.items():
+            key = str(key).strip().replace('_', '-')
+            arg_bytes.append(
+                (f"--{key}={_format_option(val)}").encode('utf-8'))
+        argc = <int> len(arg_bytes) + 1
+        argv = <char **> malloc(sizeof(char *) * argc)
+        if argv is NULL:
+            raise MemoryError("failed to allocate the argument list")
+        argv[0] = <char *> pyfcfc_arg0()
+        for i in range(len(arg_bytes)):
+            argv[i + 1] = <char *> arg_bytes[i]
+        with nogil:
+            e = pyfcfc_soft_vjp(argc, argv, dat, c_ncat, &sedges_mv[0], ns,
+                                pedges_ptr, npi, c_nmu, pair_c, &g_mv[0],
+                                &gx0_mv[0, 0], &gx1_mv[0, 0], gw0_ptr,
+                                gw1_ptr, gsig_ptr)
+        dat_owned = True
+        if e:
+            raise RuntimeError("FCFC failed to evaluate the soft histogram "
+                               "VJP; see the error message above")
+        out = {'grads': {labels[ia]: np.ascontiguousarray(gx[0]),
+                         labels[ib]: np.ascontiguousarray(gx[1])}}
+        if grad_wts:
+            out['grad_wts'] = {
+                labels[ia]: np.ascontiguousarray(gw[0]),
+                labels[ib]: np.ascontiguousarray(gw[1])}
+        else:
+            out['grad_wts'] = None
+        out['grad_sigma'] = float(gsig[0]) if grad_sigma else None
+        return out
+    finally:
+        if argv is not NULL:
+            free(argv)
+        if not dat_owned:
             pyfcfc_data_free(dat, ncat)

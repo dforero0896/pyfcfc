@@ -40,4 +40,24 @@ Return:
 CF *compute_cf(int argc, char *argv[], DATA *dat, int ncat,
     real *sbins, int ns, real *pbins, int np, int nmu);
 
+
+/******************************************************************************
+Function `compute_cf_soft_vjp':
+  Reverse-mode derivative of the soft histogramming pair counts: given the
+  cotangents `g' of a scalar loss with respect to the raw bins of one pair
+  count (`pair', e.g. "DD"), evaluate the cotangents of the input catalogue
+  coordinates (and optionally of the weights and of the kernel width).
+  The configuration is parsed and the trees are built exactly as in
+  `compute_cf'; the cotangents are returned in the units of the input
+  coordinates.  `gx', `gw' hold two entries (the two catalogues of the
+  pair; identical buffers for auto pairs); NULL entries disable the
+  respective output (`gw', `gsigma').
+Return:
+  Zero on success; non-zero on error.
+******************************************************************************/
+int compute_cf_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
+    real *sbins, int ns, real *pbins, int np, int nmu,
+    const char *pair, const double *g,
+    double *gx[], double *gw[], double *gsigma);
+
 #endif

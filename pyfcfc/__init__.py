@@ -15,9 +15,20 @@ This package wraps the two FCFC pair-counting components:
   Cartesian coordinates internally.
 
 Both modules expose a single function, ``py_compute_cf(data_cats, data_wts,
-sedges, pedges=None, nmu=1, **kwargs)``, which takes in-memory (NumPy)
-catalogues and returns a dictionary with the pair counts, correlation
-functions, multipoles and/or projected correlation functions.
+sedges, pedges=None, nmu=1, soft_hist=False, soft_sigma=None, **kwargs)``,
+which takes in-memory (NumPy) catalogues and returns a dictionary with the
+pair counts, correlation functions, multipoles and/or projected correlation
+functions.
+
+Besides the standard (hard) histogram pair counting of FCFC, an optional
+*soft histogramming* method is available with ``soft_hist=True``: every pair
+is spread over all separation bins with the softmax of a Gaussian kernel of
+width ``soft_sigma`` centred on the bins, conserving the total pair weight
+(see the ``py_compute_cf`` docstrings and the README for details).
+The reverse-mode derivative (VJP) of the soft pair counts with respect to
+the catalogue coordinates, the weights and the kernel width is provided by
+``soft_hist_vjp`` in both modules, for use with reverse-mode autodiff
+engines.
 
 The :mod:`pyfcfc.utils` module provides helpers to combine pair counts from
 random-catalog splits, integrate correlation functions, and convert results
