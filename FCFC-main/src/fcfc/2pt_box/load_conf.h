@@ -56,6 +56,8 @@ typedef struct {
 
   int dstruct;          /* DATA_STRUCT          */
   int bintype;          /* BINNING_SCHEME       */
+  bool soft;            /* SOFT_HIST            */
+  double soft_sigma;    /* SOFT_SIGMA           */
   char **pc;            /* PAIR_COUNT           */
   bool *comp_pc;        /* Indicate whether to evaluate the pair counts. */
   int npc;              /* Number of pair counts to be computed. */

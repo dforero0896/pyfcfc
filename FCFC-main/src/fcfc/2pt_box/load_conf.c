@@ -124,6 +124,8 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
     {'b', "box"         , "BOX_SIZE"       , CFG_ARRAY_DBL , &conf->bsize   },
     {'S', "data-struct" , "DATA_STRUCT"    , CFG_DTYPE_INT , &conf->dstruct },
     {'B', "bin"         , "BINNING_SCHEME" , CFG_DTYPE_INT , &conf->bintype },
+    { 0 , "soft-hist"   , "SOFT_HIST"      , CFG_DTYPE_BOOL, &conf->soft    },
+    { 0 , "soft-sigma"  , "SOFT_SIGMA"     , CFG_DTYPE_DBL , &conf->soft_sigma },
     {'p', "pair"        , "PAIR_COUNT"     , CFG_ARRAY_STR , &conf->pc      },
     {'P', "pair-output" , "PAIR_COUNT_FILE", CFG_ARRAY_STR , &conf->pcout   },
     {'e', "cf"          , "CF_ESTIMATOR"   , CFG_ARRAY_STR , &conf->cf      },
@@ -380,6 +382,17 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     default:
       P_ERR("invalid " FMT_KEY(BINNING_SCHEME) ": %d\n", conf->bintype);
       return FCFC_ERR_CFG;
+  }
+
+  /* SOFT_HIST */
+  if (!cfg_is_set(cfg, &conf->soft)) conf->soft = DEFAULT_SOFT_HIST;
+
+  /* SOFT_SIGMA */
+  if (!cfg_is_set(cfg, &conf->soft_sigma))
+    conf->soft_sigma = DEFAULT_SOFT_SIGMA;
+  if (!isfinite(conf->soft_sigma) || conf->soft_sigma < 0) {
+    P_ERR("invalid " FMT_KEY(SOFT_SIGMA) ": %g\n", conf->soft_sigma);
+    return FCFC_ERR_CFG;
   }
 
   /* PAIR_COUNT */
