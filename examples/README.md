@@ -7,6 +7,8 @@ to `examples/figures/`. They can be run from anywhere:
 ```bash
 python examples/example_features_tour.py        # ~5 s
 python examples/example_validation_bruteforce.py  # ~10 s
+python examples/example_soft_hist.py          # ~20 s
+python examples/example_soft_hist_jax.py      # ~40 s (needs jax)
 python examples/example_box_vs_pycorr.py        # ~30 s (needs pycorr)
 python examples/example_survey_vs_pycorr.py     # ~15 s (needs pycorr)
 python examples/example_pycorr_interop.py       # ~10 s (needs pycorr)
@@ -29,6 +31,8 @@ notebooks in `../notebooks/` (see the table in the main README).
 | 4 | `example_survey_vs_pycorr.py` | Survey-like data: {RA, Dec, z} in, cosmological conversion inside pyfcfc, midpoint line-of-sight comparison with pycorr; multipoles and w_p; figure `figures/survey_vs_pycorr.png`. |
 | 5 | `example_pycorr_interop.py` | The production workflow: split-random accumulation (`add_pair_counts`), conversion to a pycorr state (`pairs_to_pycorr`), save/load with pycorr, rebinning; figure `figures/pycorr_interop.png`. |
 | 6 | `example_benchmark.py` | Performance: pyfcfc vs pycorr timings (see below); figure `figures/benchmark.png`, table `figures/benchmark_results.csv`. |
+| 7 | `example_soft_hist.py` | The optional soft histogramming method (softmax + Gaussian kernel pair distribution) against the standard hard histogram of the C library: pair counts, soft/hard ratios, xi(s), weight-conservation checks and timings; figure `figures/soft_hist.png`. |
+| 8 | `example_soft_hist_jax.py` | The soft histogram as a JAX primitive: `jax.custom_vjp` wrapping the C forward and adjoint, gradient validation against finite differences, and an Alcock-Paczyński-like stretch recovery by Adam on `jax.grad`; figure `figures/soft_hist_jax.png`. |
 
 ## Feature coverage matrix
 

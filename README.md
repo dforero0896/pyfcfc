@@ -37,6 +37,7 @@ step (and larger with SIMD enabled).
 - [Quick start](#quick-start)
 - [The `py_compute_cf` function](#the-py_compute_cf-function)
   - [Configuration options](#configuration-options)
+  - [Soft histogramming (optional method)](#soft-histogramming-optional-method)
   - [Result dictionary](#result-dictionary)
 - [Conventions](#conventions)
   - [Pair counts and normalizations](#pair-counts-and-normalizations)
@@ -196,6 +197,8 @@ What remains of the file machinery, and stays supported:
 | `label`                 | ✔ | ✔ | single-uppercase-letter catalogue labels (defaults to A, B, C, ...) |
 | `pair`                  | ✔ | ✔ | pair counts to evaluate, e.g. `['DD','DR','RR']` |
 | `bin`                   | ✔ | ✔ | binning scheme: 0 = isotropic, 1 = (s, mu), 2 = (s_perp, pi) |
+| `soft_hist`             | ✔ | ✔ | soft histogramming: spread every pair over all separation bins with softmax Gaussian-kernel weights (experimental) |
+| `soft_sigma`            | ✔ | ✔ | Gaussian kernel width in the units of `sedges` (default: half the mean bin width); requires `soft_hist` |
 | `cf`                    | ✔ | ✔ | correlation function estimator expression(s), e.g. `['(DD - 2*DR + RR)/RR']`; `'@@'` denotes the analytic random-random counts (box) |
 | `multipole`             | ✔ | ✔ | multipole orders to integrate (requires `bin=1` and `cf`) |
 | `wp`                    | ✔ | ✔ | compute the projected correlation function (requires `bin=2` and `cf`) |
@@ -212,6 +215,89 @@ What remains of the file machinery, and stays supported:
 Errors inside the C code (bad configuration, missing pairs, ...) raise
 Python exceptions (`RuntimeError`) and never crash the interpreter; all
 allocated memory is released on both success and failure paths.
+
+### Soft histogramming (optional method)
+
+Besides the standard ("hard") histogram pair counting of FCFC, both modules
+support an optional *soft histogramming* method, enabled with the
+`soft_hist=True` keyword (or `SOFT_HIST = T` in a configuration file):
+
+```python
+res = py_compute_cf([data, rand], [w_d, w_r], s_edges, None, 48,
+                    soft_hist=True, soft_sigma=2.0,   # kernel width, units of sedges
+                    label=['D', 'R'], bin=1, pair=['DD', 'DR', 'RR'], box=1000.)
+```
+
+Instead of adding the weight of every pair to exactly one separation bin,
+the weight is distributed over *all* separation bins with the softmax of a
+Gaussian kernel centred on the bins,
+
+    x_i = (s - c_i)^2 / (2 sigma^2),    W_i = softmax_i(-x_i),    cnt_i += w_pair * W_i,
+
+where `c_i` are the bin centres and `sigma = soft_sigma` (`soft_sigma=None`
+/ `SOFT_SIGMA = 0` selects automatically half the mean separation bin
+width).  Since the softmax weights sum to one, the total weight of all
+pairs with `smin <= s < smax` is conserved exactly: the soft histogram is a
+kernel-smoothed version of the hard one, and the two are directly
+comparable (soft counts converge to the hard counts in the `sigma -> 0`
+limit).  Properties and limitations:
+
+- the mu (`bin=1`) and pi (`bin=2`) dimensions remain hard-binned as usual;
+- pair counts become fractional and are always accumulated in double
+  precision (`cf_setup` forces the weighted counting path in soft mode);
+- the tree traversal, periodic wrapping and per-pair range checks replicate
+  the scalar hard kernels exactly, so both methods operate on the same set
+  of pairs;
+- the soft kernels are scalar (no SIMD) but OpenMP-parallel with the same
+  thread decomposition as the hard kernels; for linear separation bins the
+  kernel weights are generated with an exact multiplicative recurrence
+  (two `exp()` calls per pair) over an adaptive window, so the per-pair
+  cost is O(min(ns, sigma / ds)) instead of O(ns).  Single-threaded the
+  soft method is typically a few times slower than the hard kernels
+  (dominated by the kernel evaluation), and it parallelises like them;
+  MPI builds are not supported.
+
+Validation against O(N^2) brute-force soft references, the conservation
+laws and the `sigma -> 0` limit are covered by `tests/test_soft_hist.py`;
+`examples/example_soft_hist.py` plots the soft histograms against the
+hard ones (counts, ratios and xi(s)).
+
+**Adjoint (reverse-mode derivatives).** Because the soft histogram is a
+smooth function of the pair separations, both modules also expose a VJP
+(vector-Jacobian product) entry point,
+
+```python
+out = soft_hist_vjp(data_cats, data_wts, sedges, pedges, nmu,
+                    pair='DD', cotangent=g, soft_sigma=2.0,
+                    grad_wts=False, grad_sigma=False, box=1000.)
+# out['grads']     : dict label -> (N, 3) coordinate cotangents
+# out['grad_wts']  : dict label -> (N,) weight cotangents (or None)
+# out['grad_sigma']: kernel-width cotangent (or None)
+```
+
+which propagates cotangents from the raw pair count bins back to the
+catalogue coordinates (and, optionally, weights and kernel width), i.e.
+exactly what a reverse-mode autodiff engine needs to backpropagate
+through the pair counting step.  With W_i the softmax weights of a pair,
+cbar = sum_i W_i c_i and bin cotangents g_i,
+
+    dW_i/ds = W_i (c_i - cbar) / sigma^2,
+    s_bar   = (w / sigma^2) * sum_i g_i W_i (c_i - cbar),
+
+chained to the coordinates through s (or s_perp for `bin=2`; for the
+survey-like component through the midpoint-LOS decomposition
+`ds_perp/dr1 = (1 - q)(d - q m)/s_perp` with `q = d.m/|m|^2`).  Discrete
+choices (range checks, mu / pi bins, kernel window) are held constant, as
+in any autodiff engine.  The adjoint replays the forward pair selection
+with its own index-preserving k-d tree (FCFC's counting trees store
+permuted coordinates without an index map), is OpenMP-parallel, and is
+validated against central finite differences in `tests/test_soft_vjp.py`
+(including the weight and sigma cotangents, and the invariant that a
+constant cotangent yields zero coordinate gradient). `examples/example_soft_hist_jax.py`
+wraps the forward and the adjoint into a `jax.custom_vjp` primitive and
+demonstrates it: gradient validation against finite differences, and a
+differentiable Alcock-Paczyński-like stretch recovery with `jax.grad` +
+Adam (`figures/soft_hist_jax.png`).
 
 ### Result dictionary
 
@@ -384,6 +470,10 @@ The suite covers, among other things:
 - **cross-validation against pycorr/Corrfunc** on identical catalogues
   (pair counts, natural and Landy-Szalay estimators, multipoles, w_p,
   isotropic mode, state conversion + save/load + rebinning);
+- **soft histogramming** (optional method): agreement with the
+  brute-force O(N^2) soft references (box and sky, all schemes, both
+  trees), exact conservation of the total pair weight with respect
+  to the hard method, and the sigma -> 0 limit;
 - API robustness: input validation and conversion, error propagation,
   immutability of caller arrays, determinism, dtype handling;
 - runtime hygiene: GIL release during counting and absence of gross
