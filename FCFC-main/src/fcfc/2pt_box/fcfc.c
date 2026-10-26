@@ -117,11 +117,13 @@ Function `compute_cf_soft_vjp':
 int compute_cf_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
     real *sbins, int ns, real *pbins, int np, int nmu,
     const char *pair, const double *g,
-    double *gx[], double *gw[], double *gsigma) {
+    double *gx[], double *gw[], double *gsigma, double *gmusigma,
+    double *gpisigma) {
 #ifdef MPI
   (void) argc; (void) argv; (void) dat; (void) ncat; (void) sbins;
   (void) ns; (void) pbins; (void) np; (void) nmu; (void) pair; (void) g;
-  (void) gx; (void) gw; (void) gsigma;
+  (void) gx; (void) gw; (void) gsigma; (void) gmusigma;
+  (void) gpisigma;
   P_ERR("soft histogramming (SOFT_HIST) does not support MPI yet\n");
   free_input_data(dat, ncat);
   return FCFC_ERR_ARG;
@@ -182,7 +184,8 @@ int compute_cf_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
   const bool isauto = (ia == ib);
 
   /* The adjoint builds its own index-preserving trees internally. */
-  status = soft_hist_vjp(cf, g, gx[0], gx[1], gw[0], gw[1], gsigma, ia, ib);
+  status = soft_hist_vjp(cf, g, gx[0], gx[1], gw[0], gw[1], gsigma,
+      gmusigma, gpisigma, ia, ib);
 
   /* The traversal works in rescaled coordinates (and sigma): convert the
    * cotangents back to the units of the inputs,
@@ -197,6 +200,7 @@ int compute_cf_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
         gx[c][k] *= (double) cf->rescale;
     }
     if (gsigma) *gsigma *= (double) cf->rescale;
+    if (gpisigma) *gpisigma *= (double) cf->rescale;
   }
 
   conf_destroy(conf);

@@ -199,6 +199,10 @@ What remains of the file machinery, and stays supported:
 | `bin`                   | ✔ | ✔ | binning scheme: 0 = isotropic, 1 = (s, mu), 2 = (s_perp, pi) |
 | `soft_hist`             | ✔ | ✔ | soft histogramming: spread every pair over all separation bins with softmax Gaussian-kernel weights (experimental) |
 | `soft_sigma`            | ✔ | ✔ | Gaussian kernel width in the units of `sedges` (default: half the mean bin width); requires `soft_hist` |
+| `soft_mu`               | ✔ | ✔ | soft histogramming of the mu dimension of the (s, mu) scheme: softmax Gaussian kernel over the mu bin centres (`bin=1` only) |
+| `soft_mu_sigma`         | ✔ | ✔ | mu kernel width in mu units (default: half the mu bin width); requires `soft_mu` |
+| `soft_pi`               | ✔ | ✔ | soft histogramming of the pi dimension of the (s_perp, pi) scheme (`bin=2`), making w_p differentiable |
+| `soft_pi_sigma`         | ✔ | ✔ | pi kernel width in the units of `pedges` (default: half the mean pi bin width); requires `soft_pi` |
 | `cf`                    | ✔ | ✔ | correlation function estimator expression(s), e.g. `['(DD - 2*DR + RR)/RR']`; `'@@'` denotes the analytic random-random counts (box) |
 | `multipole`             | ✔ | ✔ | multipole orders to integrate (requires `bin=1` and `cf`) |
 | `wp`                    | ✔ | ✔ | compute the projected correlation function (requires `bin=2` and `cf`) |
@@ -242,7 +246,7 @@ kernel-smoothed version of the hard one, and the two are directly
 comparable (soft counts converge to the hard counts in the `sigma -> 0`
 limit).  Properties and limitations:
 
-- the mu (`bin=1`) and pi (`bin=2`) dimensions remain hard-binned as usual;
+- the mu (`bin=1`) and pi (`bin=2`) dimensions remain hard-binned unless `soft_mu=True` / `soft_pi=True` are set: soft binning them makes the 2D counts smooth in *both* arguments, hence the multipoles xi_ell(s) and the projected correlation function w_p (linear operators on xi(s, mu) / xi(s_perp, pi)) become differentiable as well;
 - pair counts become fractional and are always accumulated in double
   precision (`cf_setup` forces the weighted counting path in soft mode);
 - the tree traversal, periodic wrapping and per-pair range checks replicate
@@ -298,6 +302,26 @@ wraps the forward and the adjoint into a `jax.custom_vjp` primitive and
 demonstrates it: gradient validation against finite differences, and a
 differentiable Alcock-Paczyński-like stretch recovery with `jax.grad` +
 Adam (`figures/soft_hist_jax.png`).
+`examples/example_soft_hist_multipoles.py` registers the soft 2D counts
+as a `jax.custom_vjp` primitive and differentiates the multipoles
+xi_0, xi_2 (Landy-Szalay + FCFC's Legendre integration, in JAX),
+recovering Alcock-Paczyński stretch parameters from them
+(`figures/soft_hist_multipoles.png`).
+`examples/example_soft_hist_wp.py` makes the projected correlation
+function differentiable (soft s and pi bins) and recovers a transverse
+stretch from w_p alone (`figures/soft_hist_wp.png`).
+`examples/example_soft_hist_rppi.py` treats the full 2D xi(r_p, pi) map
+as the differentiable object: it computes the adjoint Jacobian maps
+d xi(r_p, pi)/d theta of an anisotropic stretch model with one-hot
+cotangents and validates them bin-by-bin against finite differences
+(`figures/soft_hist_rppi.png`).
+`examples/example_soft_hist_fit.py` shows the same machinery without any
+autodiff framework: a 3-parameter rigid displacement of the galaxy
+catalogue (one shift per axis) is recovered by Adam on the loss
+`1/2 |DR(theta) - DR(theta_*)|^2`, with `dL/dtheta` obtained by
+contracting the `soft_hist_vjp` coordinate cotangents (gradient check vs
+finite differences and the rigid-translation null direction included;
+`figures/soft_hist_fit.png`).
 
 ### Result dictionary
 

@@ -75,6 +75,7 @@ void pyfcfc_cf_wp(const CF *cf, int i, double *dst);
 int pyfcfc_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
     double *sbins, int ns, double *pbins, int np_, int nmu,
     const char *pair, const double *g,
-    double *gx0, double *gx1, double *gw0, double *gw1, double *gsigma);
+    double *gx0, double *gx1, double *gw0, double *gw1, double *gsigma,
+    double *gmusigma, double *gpisigma);
 
 #endif

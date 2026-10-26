@@ -4854,7 +4854,7 @@ int count_pairs(const void *tree1, const void *tree2, CF *cf, COUNT *cnt,
   /* Optional soft histogramming (SOFT_HIST): spread every pair over all
    * separation bins with Gaussian-kernel softmax weights, instead of
    * assigning it to a single bin. */
-  if (cf->soft)
+  if (cf->soft || cf->soft_mu || cf->soft_pi)
     return soft_count_pairs(tree1, tree2, cf, cnt, isauto, withwt
 #ifdef MPI
         , para
