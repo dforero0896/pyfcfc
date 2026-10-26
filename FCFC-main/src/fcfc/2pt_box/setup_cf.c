@@ -699,6 +699,20 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
   }
   /* Rescale also the box sizes. */
   for (int i = 0; i < 3; i++) cf->bsize[i] *= cf->rescale;
+
+  /* Soft histogramming (softmax + Gaussian kernel pair distribution). */
+  cf->soft = conf->soft ? 1 : 0;
+  if (cf->soft) {
+    /* SOFT_SIGMA is given in input units: rescale it like the coordinates.
+     * The default (0) means half the mean separation bin width. */
+    cf->soft_sigma = (conf->soft_sigma > 0) ?
+        (real) conf->soft_sigma * cf->rescale :
+        0.5 * (cf->sbin[cf->ns] - cf->sbin[0]) / cf->ns;
+    if (conf->verbose)
+      printf("  Soft histogramming enabled (Gaussian kernel sigma: %g)\n",
+          (double) (cf->soft_sigma / cf->rescale));
+  }
+
   if (conf->verbose) printf("  Separation bins initialized successfully\n");
 
   /* Initialise pair counts. */
@@ -743,6 +757,15 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
   for (int i = 0; i < cf->npc; i++) {
     cf->cat_wt[cf->pc_idx[0][i]] = cf->cat_wt[cf->pc_idx[1][i]] = cf->wt[i] =
         conf->has_wt[cf->pc_idx[0][i]] || conf->has_wt[cf->pc_idx[1][i]];
+  }
+  /* Soft pair counts are fractional: enforce the double accumulation path
+   * (weighted counting) for all pair counts and catalogues. */
+  if (cf->soft) {
+    for (int i = 0; i < cf->npc; i++) {
+      cf->cat_wt[cf->pc_idx[0][i]] = true;
+      cf->cat_wt[cf->pc_idx[1][i]] = true;
+      cf->wt[i] = true;
+    }
   }
   
   if (!(cf->cnt = malloc(sizeof(COUNT *) * cf->npc))) {

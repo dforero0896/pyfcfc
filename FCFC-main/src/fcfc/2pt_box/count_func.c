@@ -13,6 +13,7 @@
 #include "define.h"
 #include "load_conf.h"
 #include "count_func.h"
+#include "soft_hist.h"
 #include "kdtree.h"
 #include "balltree.h"
 #include <string.h>
@@ -4850,6 +4851,16 @@ int count_pairs(const void *tree1, const void *tree2, CF *cf, COUNT *cnt,
     , const PARA *para
 #endif
     ) {
+  /* Optional soft histogramming (SOFT_HIST): spread every pair over all
+   * separation bins with Gaussian-kernel softmax weights, instead of
+   * assigning it to a single bin. */
+  if (cf->soft)
+    return soft_count_pairs(tree1, tree2, cf, cnt, isauto, withwt
+#ifdef MPI
+        , para
+#endif
+        );
+
   void (*paircnt_func) (STACK_DUAL_NODE *, const void *, void *) = NULL;
   void *conf = NULL;
   real hsize[3];

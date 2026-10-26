@@ -65,4 +65,16 @@ void pyfcfc_cf_cfval(const CF *cf, int i, double *dst);
 void pyfcfc_cf_mp(const CF *cf, int i, double *dst);
 void pyfcfc_cf_wp(const CF *cf, int i, double *dst);
 
+
+/* Reverse-mode derivative of the soft histogramming pair counts: `g'
+ * holds the cotangents of the raw bins of the pair count `pair'; the
+ * coordinate cotangents are written to `gx0' / `gx1' (3 * n arrays,
+ * zero-initialised by the caller, input units on return); `gw0' / `gw1'
+ * (n arrays, may be NULL) and `gsigma' (scalar, may be NULL) receive the
+ * weight and kernel-width cotangents. */
+int pyfcfc_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
+    double *sbins, int ns, double *pbins, int np_, int nmu,
+    const char *pair, const double *g,
+    double *gx0, double *gx1, double *gw0, double *gw1, double *gsigma);
+
 #endif

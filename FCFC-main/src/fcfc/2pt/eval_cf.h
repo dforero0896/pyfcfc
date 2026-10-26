@@ -85,6 +85,8 @@ typedef struct {
   real *sbin;           /* edges of separation (or s_perp) bins           */
   real *pbin;           /* edges of pi bins                               */
   int verbose;          /* indicate whether to show detailed outputs      */
+  int soft;             /* indicate soft histogramming pair counts        */
+  real soft_sigma;      /* Gaussian kernel width (in rescaled units)      */
 
   int npc;              /* number of pair counts to be evaluated          */
   int *pc_idx[2];       /* pairs to be counted, defined as input indices  */
