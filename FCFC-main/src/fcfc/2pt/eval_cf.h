@@ -87,6 +87,10 @@ typedef struct {
   int verbose;          /* indicate whether to show detailed outputs      */
   int soft;             /* indicate soft histogramming pair counts        */
   real soft_sigma;      /* Gaussian kernel width (in rescaled units)      */
+  int soft_mu;          /* indicate soft histogramming of the mu bins     */
+  real soft_mu_sigma;   /* Gaussian kernel width in mu units              */
+  int soft_pi;          /* indicate soft histogramming of the pi bins     */
+  real soft_pi_sigma;   /* Gaussian kernel width in pi units (rescaled)   */
 
   int npc;              /* number of pair counts to be evaluated          */
   int *pc_idx[2];       /* pairs to be counted, defined as input indices  */

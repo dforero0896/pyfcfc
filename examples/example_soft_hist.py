@@ -72,7 +72,7 @@ def main():
     data, w_d = make_clustered_box(N_DATA, BOX, seed=42, n_centers=25)
     rand, w_r = make_clustered_box(N_RAND, BOX, seed=7, n_centers=1,
                                    clump_frac=0.0)
-    s_edges = np.arange(0, 85, 5, dtype=np.float64)   # ds = 5, 17 bins
+    s_edges = np.arange(0, 82.5, 2.5, dtype=np.float64)   # ds = 2.5, 32 bins
     s_cen = 0.5 * (s_edges[:-1] + s_edges[1:])
     ds = s_edges[1] - s_edges[0]
     cats, wts = [data, rand], [w_d, w_r]

@@ -696,6 +696,8 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
   }
   /* Soft histogramming (softmax + Gaussian kernel pair distribution). */
   cf->soft = conf->soft ? 1 : 0;
+  cf->soft_mu = conf->soft_mu ? 1 : 0;
+  cf->soft_pi = conf->soft_pi ? 1 : 0;
   if (cf->soft) {
     /* SOFT_SIGMA is given in input units: rescale it like the coordinates.
      * The default (0) means half the mean separation bin width. */
@@ -705,6 +707,25 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
     if (conf->verbose)
       printf("  Soft histogramming enabled (Gaussian kernel sigma: %g)\n",
           (double) (cf->soft_sigma / cf->rescale));
+  }
+  if (cf->soft_mu) {
+    /* mu bins are dimensionless and always linear on [0, 1): no rescaling;
+     * the default width is half the mean mu bin width. */
+    cf->soft_mu_sigma = (conf->soft_mu_sigma > 0) ?
+        (real) conf->soft_mu_sigma : (real) (0.5 / cf->nmu);
+    if (conf->verbose)
+      printf("  Soft mu histogramming enabled (Gaussian kernel sigma: %g)\n",
+          (double) cf->soft_mu_sigma);
+  }
+  if (cf->soft_pi) {
+    /* pi bins carry length units: rescale the kernel width; the default
+     * is half the mean pi bin width. */
+    cf->soft_pi_sigma = (conf->soft_pi_sigma > 0) ?
+        (real) conf->soft_pi_sigma * cf->rescale :
+        0.5 * (cf->pbin[cf->np] - cf->pbin[0]) / cf->np;
+    if (conf->verbose)
+      printf("  Soft pi histogramming enabled (Gaussian kernel sigma: %g)\n",
+          (double) (cf->soft_pi_sigma / cf->rescale));
   }
 
   if (conf->verbose) printf("  Separation bins initialised successfully\n");
@@ -755,7 +776,7 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
   }
   /* Soft pair counts are fractional: enforce the double accumulation path
    * (weighted counting) for all pair counts and catalogues. */
-  if (cf->soft) {
+  if (cf->soft || cf->soft_mu || cf->soft_pi) {
     for (int i = 0; i < cf->npc; i++) {
       cf->cat_wt[cf->pc_idx[0][i]] = true;
       cf->cat_wt[cf->pc_idx[1][i]] = true;

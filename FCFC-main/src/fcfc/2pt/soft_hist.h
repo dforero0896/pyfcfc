@@ -73,7 +73,8 @@ Function `soft_hist_vjp`:
   weights and of the kernel width sigma.  See `soft_hist.c` for the maths.
 ******************************************************************************/
 int soft_hist_vjp(CF *cf, const double *g, double *gx1, double *gx2,
-    double *gw1, double *gw2, double *gsigma, const int ia, const int ib
+    double *gw1, double *gw2, double *gsigma, double *gmusigma,
+    double *gpisigma, const int ia, const int ib
 #ifdef MPI
     , const PARA *para
 #endif

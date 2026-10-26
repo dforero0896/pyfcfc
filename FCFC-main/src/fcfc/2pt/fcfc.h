@@ -58,6 +58,7 @@ Return:
 int compute_cf_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
     real *sbins, int ns, real *pbins, int np, int nmu,
     const char *pair, const double *g,
-    double *gx[], double *gw[], double *gsigma);
+    double *gx[], double *gw[], double *gsigma, double *gmusigma,
+    double *gpisigma);
 
 #endif

@@ -126,6 +126,10 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
     {'B', "bin"         , "BINNING_SCHEME" , CFG_DTYPE_INT , &conf->bintype },
     { 0 , "soft-hist"   , "SOFT_HIST"      , CFG_DTYPE_BOOL, &conf->soft    },
     { 0 , "soft-sigma"  , "SOFT_SIGMA"     , CFG_DTYPE_DBL , &conf->soft_sigma },
+    { 0 , "soft-mu"     , "SOFT_MU"        , CFG_DTYPE_BOOL, &conf->soft_mu   },
+    { 0 , "soft-mu-sigma", "SOFT_MU_SIGMA" , CFG_DTYPE_DBL , &conf->soft_mu_sigma },
+    { 0 , "soft-pi"     , "SOFT_PI"        , CFG_DTYPE_BOOL, &conf->soft_pi   },
+    { 0 , "soft-pi-sigma", "SOFT_PI_SIGMA" , CFG_DTYPE_DBL , &conf->soft_pi_sigma },
     {'p', "pair"        , "PAIR_COUNT"     , CFG_ARRAY_STR , &conf->pc      },
     {'P', "pair-output" , "PAIR_COUNT_FILE", CFG_ARRAY_STR , &conf->pcout   },
     {'e', "cf"          , "CF_ESTIMATOR"   , CFG_ARRAY_STR , &conf->cf      },
@@ -392,6 +396,28 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     conf->soft_sigma = DEFAULT_SOFT_SIGMA;
   if (!isfinite(conf->soft_sigma) || conf->soft_sigma < 0) {
     P_ERR("invalid " FMT_KEY(SOFT_SIGMA) ": %g\n", conf->soft_sigma);
+    return FCFC_ERR_CFG;
+  }
+
+  /* SOFT_MU */
+  if (!cfg_is_set(cfg, &conf->soft_mu)) conf->soft_mu = DEFAULT_SOFT_MU;
+
+  /* SOFT_MU_SIGMA */
+  if (!cfg_is_set(cfg, &conf->soft_mu_sigma))
+    conf->soft_mu_sigma = DEFAULT_SOFT_MU_SIGMA;
+  if (!isfinite(conf->soft_mu_sigma) || conf->soft_mu_sigma < 0) {
+    P_ERR("invalid " FMT_KEY(SOFT_MU_SIGMA) ": %g\n", conf->soft_mu_sigma);
+    return FCFC_ERR_CFG;
+  }
+
+  /* SOFT_PI */
+  if (!cfg_is_set(cfg, &conf->soft_pi)) conf->soft_pi = DEFAULT_SOFT_PI;
+
+  /* SOFT_PI_SIGMA */
+  if (!cfg_is_set(cfg, &conf->soft_pi_sigma))
+    conf->soft_pi_sigma = DEFAULT_SOFT_PI_SIGMA;
+  if (!isfinite(conf->soft_pi_sigma) || conf->soft_pi_sigma < 0) {
+    P_ERR("invalid " FMT_KEY(SOFT_PI_SIGMA) ": %g\n", conf->soft_pi_sigma);
     return FCFC_ERR_CFG;
   }
 

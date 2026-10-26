@@ -9,6 +9,10 @@ python examples/example_features_tour.py        # ~5 s
 python examples/example_validation_bruteforce.py  # ~10 s
 python examples/example_soft_hist.py          # ~20 s
 python examples/example_soft_hist_jax.py      # ~40 s (needs jax)
+python examples/example_soft_hist_fit.py      # ~40 s
+python examples/example_soft_hist_multipoles.py  # ~60 s (needs jax)
+python examples/example_soft_hist_wp.py         # ~50 s (needs jax)
+python examples/example_soft_hist_rppi.py       # ~60 s
 python examples/example_box_vs_pycorr.py        # ~30 s (needs pycorr)
 python examples/example_survey_vs_pycorr.py     # ~15 s (needs pycorr)
 python examples/example_pycorr_interop.py       # ~10 s (needs pycorr)
@@ -33,6 +37,10 @@ notebooks in `../notebooks/` (see the table in the main README).
 | 6 | `example_benchmark.py` | Performance: pyfcfc vs pycorr timings (see below); figure `figures/benchmark.png`, table `figures/benchmark_results.csv`. |
 | 7 | `example_soft_hist.py` | The optional soft histogramming method (softmax + Gaussian kernel pair distribution) against the standard hard histogram of the C library: pair counts, soft/hard ratios, xi(s), weight-conservation checks and timings; figure `figures/soft_hist.png`. |
 | 8 | `example_soft_hist_jax.py` | The soft histogram as a JAX primitive: `jax.custom_vjp` wrapping the C forward and adjoint, gradient validation against finite differences, and an Alcock-Paczyński-like stretch recovery by Adam on `jax.grad`; figure `figures/soft_hist_jax.png`. |
+| 9 | `example_soft_hist_fit.py` | Realistic reverse-mode use case without any autodiff framework: recover a 3-parameter rigid displacement of the galaxy catalogue (one shift per axis) by Adam on the soft cross-histogram matching loss, gradient from `soft_hist_vjp`; gradient check vs finite differences and the rigid-translation null direction; figure `figures/soft_hist_fit.png`. |
+| 10 | `example_soft_hist_multipoles.py` | Differentiable multipoles: soft binning in s *and* mu makes xi(s, mu) - and hence xi_0/xi_2 - smooth; `jax.custom_vjp` on the 2D counts, JAX-side Legendre integration, AP stretch recovery from the multipoles; figure `figures/soft_hist_multipoles.png`. |
+| 11 | `example_soft_hist_wp.py` | Differentiable projected correlation function: soft s *and* pi bins make w_p smooth; `jax.custom_vjp` on the 2D counts, JAX-side Landy-Szalay + pi integration, transverse stretch recovered from w_p; figure `figures/soft_hist_wp.png`. |
+| 12 | `example_soft_hist_rppi.py` | The full 2D xi(r_p, pi) map as a differentiable object: adjoint Jacobian maps d xi/d theta for an anisotropic stretch model (one-hot cotangents through `soft_hist_vjp`), validated bin-by-bin against finite differences; figure `figures/soft_hist_rppi.png`. |
 
 ## Feature coverage matrix
 
