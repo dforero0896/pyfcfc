@@ -270,7 +270,8 @@ def soft_gaussian_weights(s, s_edges, sigma):
 
 
 def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
-                         mu_edges=None, pi_edges=None):
+                         mu_edges=None, pi_edges=None, soft_mu_sigma=None,
+                         soft_pi_sigma=None):
     """Soft-histogram reference pair counts in a periodic box.
 
     Conventions are exactly those of :func:`brute_force_box` (minimum
@@ -325,8 +326,15 @@ def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
                     mu2 = np.where(s2 > 0, d[:, 2] ** 2 / s2, 0.0)
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0]) & (mu2 < 1.0)
                 W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)
-                jj = np.searchsorted(mu2_edges, mu2[keep], side='right') - 1
-                np.add.at(out.T, jj, wprod[keep, None] * W)
+                if soft_mu_sigma is not None:
+                    WM = soft_gaussian_weights(np.sqrt(mu2[keep]),
+                                               np.asarray(mu_edges),
+                                               soft_mu_sigma)
+                    out += np.einsum('k,ki,kj->ij', wprod[keep], W, WM)
+                else:
+                    jj = np.searchsorted(mu2_edges, mu2[keep],
+                                         side='right') - 1
+                    np.add.at(out.T, jj, wprod[keep, None] * W)
             elif pi_edges is not None:
                 pi2 = d[:, 2] ** 2
                 s_perp2 = s2 - pi2
@@ -334,8 +342,15 @@ def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
                     & (pi2 < pi2_edges[-1]) & (pi2 >= pi2_edges[0])
                 W = soft_gaussian_weights(np.sqrt(s_perp2[keep]), s_edges,
                                           sigma)
-                jj = np.searchsorted(pi2_edges, pi2[keep], side='right') - 1
-                np.add.at(out.T, jj, wprod[keep, None] * W)
+                if soft_pi_sigma is not None:
+                    WP = soft_gaussian_weights(np.sqrt(pi2[keep]),
+                                               np.asarray(pi_edges),
+                                               soft_pi_sigma)
+                    out += np.einsum('k,ki,kj->ij', wprod[keep], W, WP)
+                else:
+                    jj = np.searchsorted(pi2_edges, pi2[keep],
+                                         side='right') - 1
+                    np.add.at(out.T, jj, wprod[keep, None] * W)
             else:
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0])
                 W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)
@@ -352,7 +367,8 @@ def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
 
 
 def brute_force_soft_sky(cats, wts, labels, pairs, s_edges, sigma,
-                         mu_edges=None, pi_edges=None):
+                         mu_edges=None, pi_edges=None, soft_mu_sigma=None,
+                         soft_pi_sigma=None):
     """Soft-histogram reference pair counts for survey-like data.
 
     Conventions are exactly those of :func:`brute_force_sky` (midpoint
@@ -403,16 +419,30 @@ def brute_force_soft_sky(cats, wts, labels, pairs, s_edges, sigma,
                     mu2 = np.where(s2 > 0, pi2 / s2, 0.0)
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0]) & (mu2 < 1.0)
                 W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)
-                jj = np.searchsorted(mu2_edges, mu2[keep], side='right') - 1
-                np.add.at(out.T, jj, wprod[keep, None] * W)
+                if soft_mu_sigma is not None:
+                    WM = soft_gaussian_weights(np.sqrt(mu2[keep]),
+                                               np.asarray(mu_edges),
+                                               soft_mu_sigma)
+                    out += np.einsum('k,ki,kj->ij', wprod[keep], W, WM)
+                else:
+                    jj = np.searchsorted(mu2_edges, mu2[keep],
+                                         side='right') - 1
+                    np.add.at(out.T, jj, wprod[keep, None] * W)
             elif pi_edges is not None:
                 s_perp2 = s2 - pi2
                 keep = (s_perp2 < s2_edges[-1]) & (s_perp2 >= s2_edges[0]) \
                     & (pi2 < pi2_edges[-1]) & (pi2 >= pi2_edges[0])
                 W = soft_gaussian_weights(np.sqrt(s_perp2[keep]), s_edges,
                                           sigma)
-                jj = np.searchsorted(pi2_edges, pi2[keep], side='right') - 1
-                np.add.at(out.T, jj, wprod[keep, None] * W)
+                if soft_pi_sigma is not None:
+                    WP = soft_gaussian_weights(np.sqrt(pi2[keep]),
+                                               np.asarray(pi_edges),
+                                               soft_pi_sigma)
+                    out += np.einsum('k,ki,kj->ij', wprod[keep], W, WP)
+                else:
+                    jj = np.searchsorted(pi2_edges, pi2[keep],
+                                         side='right') - 1
+                    np.add.at(out.T, jj, wprod[keep, None] * W)
             else:
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0])
                 W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)

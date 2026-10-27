@@ -69,7 +69,8 @@ cdef extern from "pyfcfc_helpers.h":
                         double *sbins, int ns, double *pbins, int np_,
                         int nmu, const char *pair, const double *g,
                         double *gx0, double *gx1, double *gw0, double *gw1,
-                        double *gsigma) nogil
+                        double *gsigma, double *gmusigma,
+                        double *gpisigma) nogil
 
 
 
@@ -92,7 +93,7 @@ def simd_info():
 
 # Valid FCFC configuration options for this component: the command-line
 # long option names (with '-' replaced by '_' when passed as keywords).
-_OPTIONS = frozenset(['bin', 'cf', 'cf-output', 'cmvdst-err', 'cmvdst-file', 'conf', 'convert', 'data-struct', 'eos-w', 'label', 'mp-output', 'multipole', 'omega-l', 'omega-m', 'out-format', 'overwrite', 'pair', 'pair-output', 'soft-hist', 'soft-sigma', 'verbose', 'weight', 'wp', 'wp-output'])
+_OPTIONS = frozenset(['bin', 'cf', 'cf-output', 'cmvdst-err', 'cmvdst-file', 'conf', 'convert', 'data-struct', 'eos-w', 'label', 'mp-output', 'multipole', 'omega-l', 'omega-m', 'out-format', 'overwrite', 'pair', 'pair-output', 'soft-hist', 'soft-sigma', 'soft-mu', 'soft-mu-sigma', 'soft-pi', 'soft-pi-sigma', 'verbose', 'weight', 'wp', 'wp-output'])
 
 # Friendly hints for frequent mistakes.
 _OPTION_HINTS = {
@@ -101,6 +102,8 @@ _OPTION_HINTS = {
     'sigma': "the Gaussian kernel width is called 'soft_sigma'",
     'soft_kernel': "the Gaussian kernel width is called 'soft_sigma'",
     'kernel_sigma': "the Gaussian kernel width is called 'soft_sigma'",
+    'soft_mu_sigma': "the mu kernel width is called 'soft_mu_sigma'",
+    'mu_sigma': "the mu kernel width is called 'soft_mu_sigma'",
     'nthreads': ("the number of OpenMP threads is set through the "
                  "OMP_NUM_THREADS environment variable"),
     'num_threads': ("the number of OpenMP threads is set through the "
@@ -313,7 +316,9 @@ cdef dict _extract_results(CF *cf):
 # ============================================================================
 
 def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
-                  soft_hist=False, soft_sigma=None, **kwargs):
+                  soft_hist=False, soft_sigma=None, soft_mu=False,
+                  soft_mu_sigma=None, soft_pi=False, soft_pi_sigma=None,
+                  **kwargs):
     """Evaluate pair counts and correlation functions with FCFC.
 
     Parameters
@@ -349,8 +354,9 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
 
         so that the total weight of the pairs with smin <= s < smax is
         conserved.  Pair counts become fractional (they are always
-        accumulated in double precision), while the mu (``bin=1``) and
-        pi (``bin=2``) dimensions remain hard-binned.  The tree
+        accumulated in double precision), while the pi (``bin=2``)
+        dimension (and mu, unless ``soft_mu=True``) remains hard-binned.
+        The tree
         traversal and the pair selection are identical to the standard
         method, so the two histograms are directly comparable.  The
         soft kernels are scalar but OpenMP-parallel; for linear bins
@@ -363,6 +369,14 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
         units of ``sedges`` (i.e. before the internal rescaling).  Only
         used with ``soft_hist=True``; the default (None) selects half
         the mean separation bin width.
+    soft_mu : bool, optional
+        Also soft-bin the mu dimension of the (s, mu) scheme with the
+        same softmax Gaussian kernel (over the mu bin centres), making
+        xi(s, mu) - and hence the multipoles - differentiable.
+        Default: False (mu hard-binned as in standard FCFC).
+    soft_mu_sigma : float, optional
+        Kernel width in mu units for ``soft_mu`` (default None: half
+        the mu bin width).
     **kwargs :
         FCFC configuration options, following the command-line option
         names of FCFC with ``-`` replaced by ``_`` (e.g. ``box=1000``,
@@ -434,6 +448,40 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
         kwargs['soft_sigma'] = sig
     if soft_hist:
         kwargs['soft_hist'] = True
+    soft_mu = bool(soft_mu)
+    if soft_mu_sigma is not None:
+        if isinstance(soft_mu_sigma, bool) or not isinstance(
+                soft_mu_sigma, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_mu_sigma must be a number, got "
+                            f"{type(soft_mu_sigma).__name__}")
+    smus = None
+    if soft_mu_sigma is not None:
+        smus = float(soft_mu_sigma)
+        if not np.isfinite(smus) or smus <= 0:
+            raise ValueError(f"soft_mu_sigma must be a positive finite "
+                             f"number, got {soft_mu_sigma!r}")
+        if not soft_mu:
+            raise ValueError("soft_mu_sigma is only meaningful with soft "
+                             "mu binning: pass soft_mu=True as well")
+        kwargs['soft_mu_sigma'] = smus
+    if soft_mu:
+        kwargs['soft_mu'] = True
+    soft_pi = bool(soft_pi)
+    if soft_pi_sigma is not None:
+        if isinstance(soft_pi_sigma, bool) or not isinstance(
+                soft_pi_sigma, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_pi_sigma must be a number, got "
+                            f"{type(soft_pi_sigma).__name__}")
+        spi = float(soft_pi_sigma)
+        if not np.isfinite(spi) or spi <= 0:
+            raise ValueError(f"soft_pi_sigma must be a positive finite "
+                             f"number, got {soft_pi_sigma!r}")
+        if not soft_pi:
+            raise ValueError("soft_pi_sigma is only meaningful with soft "
+                             "pi binning: pass soft_pi=True as well")
+        kwargs['soft_pi_sigma'] = spi
+    if soft_pi:
+        kwargs['soft_pi'] = True
 
     ncat = len(data_cats)
     if ncat != len(data_wts):
@@ -604,6 +652,8 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
 def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
                   pair='DD', cotangent=None, soft_sigma=None,
                   normalized=False, grad_wts=False, grad_sigma=False,
+                  grad_mu_sigma=False, grad_pi_sigma=False, soft_mu=False,
+                  soft_mu_sigma=None, soft_pi=False, soft_pi_sigma=None,
                   **kwargs):
     """Reverse-mode derivative (VJP) of the soft histogram pair counts.
 
@@ -680,6 +730,38 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
                          "soft_hist_vjp, not as an FCFC option")
     kwargs['pair'] = [pair]
     kwargs['soft_hist'] = True
+    soft_mu = bool(soft_mu)
+    if soft_mu_sigma is not None:
+        if isinstance(soft_mu_sigma, bool) or not isinstance(
+                soft_mu_sigma, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_mu_sigma must be a number, got "
+                            f"{type(soft_mu_sigma).__name__}")
+        smus = float(soft_mu_sigma)
+        if not np.isfinite(smus) or smus <= 0:
+            raise ValueError(f"soft_mu_sigma must be a positive finite "
+                             f"number, got {soft_mu_sigma!r}")
+        if not soft_mu:
+            raise ValueError("soft_mu_sigma is only meaningful with soft "
+                             "mu binning: pass soft_mu=True as well")
+        kwargs['soft_mu_sigma'] = smus
+    if soft_mu:
+        kwargs['soft_mu'] = True
+    soft_pi = bool(soft_pi)
+    if soft_pi_sigma is not None:
+        if isinstance(soft_pi_sigma, bool) or not isinstance(
+                soft_pi_sigma, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_pi_sigma must be a number, got "
+                            f"{type(soft_pi_sigma).__name__}")
+        spi = float(soft_pi_sigma)
+        if not np.isfinite(spi) or spi <= 0:
+            raise ValueError(f"soft_pi_sigma must be a positive finite "
+                             f"number, got {soft_pi_sigma!r}")
+        if not soft_pi:
+            raise ValueError("soft_pi_sigma is only meaningful with soft "
+                             "pi binning: pass soft_pi=True as well")
+        kwargs['soft_pi_sigma'] = spi
+    if soft_pi:
+        kwargs['soft_pi'] = True
     if soft_sigma is not None:
         if isinstance(soft_sigma, bool) or not isinstance(
                 soft_sigma, (int, float, np.integer, np.floating)):
@@ -774,6 +856,8 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
         if ia == ib:
             gw[1] = gw[0]
     gsig = np.zeros(1) if grad_sigma else None
+    gmus = np.zeros(1) if grad_mu_sigma else None
+    gpi = np.zeros(1) if grad_pi_sigma else None
 
     cdef double[:, ::1] gx0_mv = gx[0]
     cdef double[:, ::1] gx1_mv = gx[1]
@@ -781,6 +865,10 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
     cdef double *gw0_ptr = NULL
     cdef double *gw1_ptr = NULL
     cdef double *gsig_ptr = NULL
+    cdef double[::1] gmus_mv
+    cdef double *gmus_ptr = NULL
+    cdef double[::1] gpi_mv
+    cdef double *gpi_ptr = NULL
     if grad_wts:
         gw0_mv = gw[0]
         gw1_mv = gw[1]
@@ -789,6 +877,12 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
     if grad_sigma:
         gsig_mv = gsig
         gsig_ptr = &gsig_mv[0]
+    if grad_mu_sigma:
+        gmus_mv = gmus
+        gmus_ptr = &gmus_mv[0]
+    if grad_pi_sigma:
+        gpi_mv = gpi
+        gpi_ptr = &gpi_mv[0]
 
     # ------------------------------------------------------------------
     # Copy the catalogues and build the argument list (as py_compute_cf).
@@ -830,7 +924,7 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
             e = pyfcfc_soft_vjp(argc, argv, dat, c_ncat, &sedges_mv[0], ns,
                                 pedges_ptr, npi, c_nmu, pair_c, &g_mv[0],
                                 &gx0_mv[0, 0], &gx1_mv[0, 0], gw0_ptr,
-                                gw1_ptr, gsig_ptr)
+                                gw1_ptr, gsig_ptr, gmus_ptr, gpi_ptr)
         dat_owned = True
         if e:
             raise RuntimeError("FCFC failed to evaluate the soft histogram "
@@ -844,6 +938,8 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
         else:
             out['grad_wts'] = None
         out['grad_sigma'] = float(gsig[0]) if grad_sigma else None
+        out['grad_mu_sigma'] = float(gmus[0]) if grad_mu_sigma else None
+        out['grad_pi_sigma'] = float(gpi[0]) if grad_pi_sigma else None
         return out
     finally:
         if argv is not NULL:

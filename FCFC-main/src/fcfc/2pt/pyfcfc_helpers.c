@@ -170,9 +170,10 @@ void pyfcfc_cf_wp(const CF *cf, int i, double *dst) {
 int pyfcfc_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
     double *sbins, int ns, double *pbins, int np_, int nmu,
     const char *pair, const double *g,
-    double *gx0, double *gx1, double *gw0, double *gw1, double *gsigma) {
+    double *gx0, double *gx1, double *gw0, double *gw1, double *gsigma,
+    double *gmusigma, double *gpisigma) {
   double *gx[2] = {gx0, gx1};
   double *gw[2] = {gw0, gw1};
   return compute_cf_soft_vjp(argc, argv, dat, ncat, sbins, ns, pbins, np_,
-      nmu, pair, g, gx, gw, gsigma);
+      nmu, pair, g, gx, gw, gsigma, gmusigma, gpisigma);
 }

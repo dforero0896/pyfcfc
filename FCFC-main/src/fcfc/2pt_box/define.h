@@ -114,9 +114,13 @@
 #define DEFAULT_STRUCT                  FCFC_STRUCT_KDTREE
 #define DEFAULT_BINNING                 FCFC_BIN_ISO
 #define DEFAULT_SOFT_HIST               false
+#define DEFAULT_SOFT_MU                 false
+#define DEFAULT_SOFT_PI                 false
 /* Gaussian kernel width for soft histogramming, in input units.
  * 0 means "automatic": half the mean separation bin width. */
 #define DEFAULT_SOFT_SIGMA              0
+#define DEFAULT_SOFT_MU_SIGMA           0
+#define DEFAULT_SOFT_PI_SIGMA           0
 #define DEFAULT_PROJECTED_CF            false
 #define DEFAULT_OUTPUT_FORMAT           FCFC_OFMT_BIN
 #define DEFAULT_OVERWRITE               FCFC_OVERWRITE_NONE
