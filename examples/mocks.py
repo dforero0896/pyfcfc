@@ -102,3 +102,40 @@ def rdd_to_xyz(rdd, omega_m=0.31, omega_l=0.69, w=-1.0):
                     chi * cd * np.sin(np.radians(ra)),
                     chi * np.sin(np.radians(dec))], axis=1)
     return np.ascontiguousarray(xyz)
+
+
+def make_wp_mock(n, size=(27., 27., 100.), offset=(30., 30., 0.), box=None,
+                seed=44, scales=(0.05, 0.3, 2.0, 8.0),
+                fracs=(0.25, 0.20, 0.20, 0.15)):
+    """Hierarchically clustered mock for realistic log-binned w_p.
+
+    A Neyman-Scott cascade with clump scales from 0.05 to 8 Mpc/h plus a
+    uniform component, placed in a transverse-thin slab so that the
+    maximum transverse separation stays below ~38 Mpc/h: pair counts on
+    r_p bins up to 40 Mpc/h then never cross the binning range under
+    small stretches, keeping the soft histogram smooth in the model
+    parameters.  Line-of-sight (z) extent is 100 Mpc/h so that pi bins
+    up to 40 Mpc/h are populated.
+
+    Returns an (n, 3) float64 array (periodic `box` if given).
+    """
+    rng = np.random.default_rng(seed)
+    size = np.asarray(size, dtype=np.float64)
+    offset = np.asarray(offset, dtype=np.float64)
+    parts = []
+    made = 0
+    for sc, fr in zip(scales, fracs):
+        m = int(n * fr)
+        if m < 2:
+            continue
+        n_c = max(4, m // 12)
+        centers = rng.uniform(0, 1, (n_c, 3)) * size
+        assign = rng.integers(0, n_c, m)
+        parts.append(centers[assign] + rng.normal(0, sc, (m, 3)))
+        made += m
+    parts.append(rng.uniform(0, 1, (n - made, 3)) * size)
+    pos = np.concatenate(parts, axis=0) % size
+    pos = pos + offset
+    if box is not None:
+        pos %= np.asarray(box, dtype=np.float64)
+    return np.ascontiguousarray(pos)

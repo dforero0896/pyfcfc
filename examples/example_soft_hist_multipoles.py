@@ -17,9 +17,12 @@ builds the Landy-Szalay estimator and the multipoles with plain JAX ops
   2. recovers the two Alcock-Paczynski parameters (transverse and
      line-of-sight stretches; the only combinations the multipoles about
      the z axis can identify) from xi_0 / xi_2 alone, by Adam on the
-     fully differentiable pipeline.
+     fully differentiable pipeline,
+  3. compares the hard histogram with several kernel widths in s and in
+     mu, showing how the smoothing enters xi_0 and xi_2.
 
-It saves ``examples/figures/soft_hist_multipoles.png``.  Requires ``jax``
+It saves ``examples/figures/soft_hist_multipoles.png`` and
+``examples/figures/soft_hist_multipoles_sigmas.png``.  Requires ``jax``
 (``pip install jax``).  Run from the root of the repository:
 
     python examples/example_soft_hist_multipoles.py
@@ -283,6 +286,77 @@ def main():
 
     fig.tight_layout()
     out_png = os.path.join(FIGDIR, "soft_hist_multipoles.png")
+    fig.savefig(out_png, dpi=140)
+    print(f"figure saved to {out_png}")
+
+    # ------------------------------------------------------------------
+    # second figure: how the kernel widths shape the multipoles
+    # ------------------------------------------------------------------
+    print("computing the kernel-width comparison ...")
+    def ell_idx(ell):
+        return POLES.index(ell)
+
+    rn = np.asarray(r)
+    okm = np.asarray(OK_MASK)
+    mu_c = (np.arange(NMU) + 0.5) / NMU
+    ds = S_EDGES[1] - S_EDGES[0]
+    dmu = 1.0 / NMU
+
+    def mp_numpy(fs, smu):
+        kw = dict(label=['G', 'R'], bin=1, pair=['GG', 'GR', 'RR'],
+                  cf=['(GG - 2 * GR + RR) / RR'], multipole=POLES, box=BOX)
+        if fs is not None:
+            kw.update(soft_hist=True, soft_sigma=fs, soft_mu=True,
+                      soft_mu_sigma=smu)
+        res = py_compute_cf([gn, rn], [wn, wrn], S_EDGES, None, NMU, **kw)
+        xi = np.where(okm, res['cf'][0], 0.0)
+        return np.stack([
+            np.sum(xi * _leg(ell, mu_c)[None, :] * (2 * ell + 1) / NMU,
+                   axis=1) for ell in POLES])
+
+    def _leg(ell, x):
+        return np.ones_like(x) if ell == 0 else 1.5 * x ** 2 - 0.5
+
+    gn = np.asarray(g)
+    wn = np.asarray(wg)
+    wrn = np.asarray(wr)
+    mp_hard = mp_numpy(None, None)
+    # kernel widths are absolute: sigma_s in Mpc/h (quoted also as
+    # multiples of the s bin width ds), sigma_mu in dimensionless mu
+    # units (multiples of the mu bin width dmu = 1/nmu).  FCFC's mu bins
+    # are always uniform on [0, 1); there is no scale-dependent (log)
+    # kernel option for mu or pi, only for s.
+    f_list = [0.25 * ds, 0.5 * ds, 1.0 * ds, 2.0 * ds]
+    mp_fs = [mp_numpy(f, SIGMA_MU) for f in f_list]
+    mu_list = [0.5 * dmu, 1.0 * dmu, 2.0 * dmu]
+    mp_mus = [mp_numpy(SIGMA_S, q) for q in mu_list]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12.0, 8.0))
+    vir = plt.get_cmap("viridis")
+    for row, (vals, curves, lab, ref, dlab, unit, ttl) in enumerate([
+            (f_list, mp_fs, r"$\sigma_s$", ds, r"\Delta s", " Mpc/h",
+             r"kernel width in $s$ [Mpc/h], $\Delta s = %g$" % ds),
+            (mu_list, mp_mus, r"$\sigma_\mu$", dmu, r"\Delta\mu", "",
+             r"kernel width in $\mu$ (dimensionless), "
+             r"$\Delta\mu = 1/n_\mu = %g$" % dmu)]):
+        for col, ell in enumerate(POLES):
+            ax = axes[row, col]
+            ax.plot(cen, mp_hard[ell_idx(ell)], "k-", lw=1.4,
+                    label="hard histogram")
+            for val, mp, c in zip(vals, curves,
+                                  [vir(0.15), vir(0.4), vir(0.65), vir(0.9)]
+                                  if row == 0 else [vir(0.2), vir(0.55),
+                                                    vir(0.9)]):
+                ax.plot(cen, mp[ell_idx(ell)], lw=1.1, color=c,
+                        label=rf"{lab}={val:g}{unit} $({val / ref:g}\,"
+                              rf"{dlab}$)")
+            ax.set_xlabel("$s$ [Mpc/h]")
+            ax.set_ylabel("$\\xi_%d(s)$" % ell)
+            ax.set_title("%s, multipole $\\ell=%d$" % (ttl, ell))
+            ax.legend(fontsize=7.5)
+            ax.grid(alpha=0.25)
+    fig.tight_layout()
+    out_png = os.path.join(FIGDIR, "soft_hist_multipoles_sigmas.png")
     fig.savefig(out_png, dpi=140)
     print(f"figure saved to {out_png}")
 

@@ -168,6 +168,8 @@ typedef struct {
   double gg;                    /* delta^2 / sigma^2 (log-ratio step) */
   double iq;                    /* exp(-gg): geometric step of ratios */
   bool soft_s;                  /* soft (softmax) binning of separations */
+  bool sigma_log;               /* kernel width proportional to s: f * s */
+  double f;                     /* the fraction f of sigma(s) = f * s */
   bool soft_mu;                 /* soft (softmax) binning of mu (smu) */
   int nmu;                      /* number of mu bins (smu) */
   double sigma_mu;              /* mu kernel width (dimensionless) */
@@ -268,6 +270,8 @@ static int soft_conf_init(SOFT_CONF *sc, const CF *cf) {
       (!sc->smin0 || !sc->pmin0));
 
   sc->soft_s = (cf->soft != 0);
+  sc->sigma_log = (cf->soft_sigma_log != 0);
+  sc->f = (double) cf->soft_sigma;
   const double sig = (double) cf->soft_sigma;
   if (sc->soft_s) {
     if (!(sig > 0) || !isfinite(sig)) {
@@ -456,9 +460,19 @@ static inline double soft_weights_recip(const int n, const double c0,
   return sum;
 }
 
+static inline double soft_weights_gen(const real *cen, const int n,
+    const double inv2sig2, const double sigma, const real s,
+    double *scratch, int *lo, int *hi);
+
 static inline double soft_weights(const SOFT_CONF *conf, const real s,
     double *scratch, int *lo, int *hi) {
   const int ns = conf->ns;
+  if (conf->sigma_log) {
+    /* scale-free kernel: sigma(s) = f * s (for logarithmic bins) */
+    const double sl = (double) s * conf->f;
+    return soft_weights_gen(conf->scen, ns, 0.5 / (sl * sl), sl, s,
+        scratch, lo, hi);
+  }
   if (conf->lin) {
     return soft_weights_recip(ns, (double) conf->scen0,
         (double) conf->delta, conf->inv2sig2, conf->iq, conf->gg, s,
@@ -848,21 +862,29 @@ static inline void soft_bin_pair_adj(const SOFT_CONF *conf,
   if (soft_s) {
     const double invS = 1.0 / ssum;
     const int want_s = (job->gsig != NULL);
+    /* sigma(s) = f * s: logits x_i = (1 - c_i/s)^2 / (2 f^2) and
+     * dW_i/ds = W_i (Qbar - Q_i) / (f^2 s^3) with Q_i = (s - c_i) c_i;
+     * for a constant sigma this reduces to Q_i = c_i and the familiar
+     * (c_i - cbar) / sigma^2 form. */
+    const double inv2_p = conf->sigma_log ?
+        0.5 / (conf->f * conf->f * t * t) : conf->inv2sig2;
     for (int i = slo; i <= shi; i++) {
       const double W = scr_s[i] * invS;
-      cbar += W * cen[i];
+      cbar += W * (conf->sigma_log ? (t - cen[i]) * cen[i] : cen[i]);
       wbar += gs[i] * W;
       if (want_s) {
         const double dd = t - cen[i];
-        xbar += W * (dd * dd * conf->inv2sig2);
+        xbar += W * (dd * dd * inv2_p);
       }
     }
     for (int i = slo; i <= shi; i++) {
       const double W = scr_s[i] * invS;
-      A += gs[i] * W * (cen[i] - cbar);
+      const double Qi = conf->sigma_log ?
+          (t - cen[i]) * cen[i] : cen[i];
+      A += gs[i] * W * (Qi - cbar);
       if (want_s) {
         const double dd = t - cen[i];
-        Ax += gs[i] * W * (dd * dd * conf->inv2sig2 - xbar);
+        Ax += gs[i] * W * (dd * dd * inv2_p - xbar);
       }
     }
   }
@@ -903,13 +925,16 @@ static inline void soft_bin_pair_adj(const SOFT_CONF *conf,
 
   const double wt = (double) w1 * (double) w2;
   const double ws = job->wscale;
-  const double tbar = soft_s ? ws * wt * A * 2.0 * conf->inv2sig2 : 0.0;
+  const double Kt = conf->sigma_log ?
+      -1.0 / (conf->f * conf->f * t * t * t) : 2.0 * conf->inv2sig2;
+  const double tbar = soft_s ? ws * wt * A * Kt : 0.0;
   const double mubar = soft2 ? ws * wt * Amu * 2.0 * inv2_2 : 0.0;
 
   if (job->gw1) SOFT_ATOMIC_ADD(job->gw1 + i1, ws * wbar * w2);
   if (job->gw2) SOFT_ATOMIC_ADD(job->gw2 + i2, ws * wbar * w1);
   if (job->gsig && soft_s)
-    SOFT_ATOMIC_ADD(job->gsig, ws * wt * 2.0 * Ax / conf->sigma);
+    SOFT_ATOMIC_ADD(job->gsig, ws * wt * 2.0 * Ax /
+        (conf->sigma_log ? conf->f : conf->sigma));
   if (soft2 && ((is_mu && job->gmus) || (!is_mu && job->gpi)))
     SOFT_ATOMIC_ADD(is_mu ? job->gmus : job->gpi,
         ws * wt * 2.0 * Ay / sig2);

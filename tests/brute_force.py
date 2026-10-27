@@ -237,7 +237,7 @@ def comoving_distance(z, omega_m=0.31, omega_l=0.69, w=-1.0, h=1.0):
     return out
 
 
-def soft_gaussian_weights(s, s_edges, sigma):
+def soft_gaussian_weights(s, s_edges, sigma, sigma_log=False):
     """Softmax Gaussian-kernel weights for soft histogramming.
 
     For each separation ``s``, the pair weight is distributed over *all*
@@ -263,7 +263,12 @@ def soft_gaussian_weights(s, s_edges, sigma):
     s = np.asarray(s, dtype=np.float64).reshape(-1)
     s_edges = np.asarray(s_edges, dtype=np.float64)
     centers = 0.5 * (s_edges[:-1] + s_edges[1:])
-    x = (s[:, None] - centers[None, :]) ** 2 / (2.0 * float(sigma) ** 2)
+    if sigma_log:
+        # scale-dependent width sigma(s) = sigma * s
+        x = (s[:, None] - centers[None, :]) ** 2 / \
+            (2.0 * (float(sigma) * s) ** 2)[:, None]
+    else:
+        x = (s[:, None] - centers[None, :]) ** 2 / (2.0 * float(sigma) ** 2)
     x -= x.min(axis=1, keepdims=True)
     e = np.exp(-x)
     return e / e.sum(axis=1, keepdims=True)
@@ -271,7 +276,7 @@ def soft_gaussian_weights(s, s_edges, sigma):
 
 def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
                          mu_edges=None, pi_edges=None, soft_mu_sigma=None,
-                         soft_pi_sigma=None):
+                         soft_pi_sigma=None, sigma_log=False):
     """Soft-histogram reference pair counts in a periodic box.
 
     Conventions are exactly those of :func:`brute_force_box` (minimum
@@ -325,7 +330,8 @@ def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
                 with np.errstate(divide='ignore', invalid='ignore'):
                     mu2 = np.where(s2 > 0, d[:, 2] ** 2 / s2, 0.0)
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0]) & (mu2 < 1.0)
-                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)
+                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma,
+                                          sigma_log=sigma_log)
                 if soft_mu_sigma is not None:
                     WM = soft_gaussian_weights(np.sqrt(mu2[keep]),
                                                np.asarray(mu_edges),
@@ -341,7 +347,7 @@ def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
                 keep = (s_perp2 < s2_edges[-1]) & (s_perp2 >= s2_edges[0]) \
                     & (pi2 < pi2_edges[-1]) & (pi2 >= pi2_edges[0])
                 W = soft_gaussian_weights(np.sqrt(s_perp2[keep]), s_edges,
-                                          sigma)
+                                          sigma, sigma_log=sigma_log)
                 if soft_pi_sigma is not None:
                     WP = soft_gaussian_weights(np.sqrt(pi2[keep]),
                                                np.asarray(pi_edges),
@@ -353,7 +359,8 @@ def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
                     np.add.at(out.T, jj, wprod[keep, None] * W)
             else:
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0])
-                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)
+                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma,
+                                          sigma_log=sigma_log)
                 out += (wprod[keep, None] * W).sum(axis=0)
 
         counts[pair] = out
@@ -368,7 +375,7 @@ def brute_force_soft_box(cats, wts, labels, pairs, s_edges, box_size, sigma,
 
 def brute_force_soft_sky(cats, wts, labels, pairs, s_edges, sigma,
                          mu_edges=None, pi_edges=None, soft_mu_sigma=None,
-                         soft_pi_sigma=None):
+                         soft_pi_sigma=None, sigma_log=False):
     """Soft-histogram reference pair counts for survey-like data.
 
     Conventions are exactly those of :func:`brute_force_sky` (midpoint
@@ -418,7 +425,8 @@ def brute_force_soft_sky(cats, wts, labels, pairs, s_edges, sigma,
                 with np.errstate(divide='ignore', invalid='ignore'):
                     mu2 = np.where(s2 > 0, pi2 / s2, 0.0)
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0]) & (mu2 < 1.0)
-                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)
+                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma,
+                                          sigma_log=sigma_log)
                 if soft_mu_sigma is not None:
                     WM = soft_gaussian_weights(np.sqrt(mu2[keep]),
                                                np.asarray(mu_edges),
@@ -433,7 +441,7 @@ def brute_force_soft_sky(cats, wts, labels, pairs, s_edges, sigma,
                 keep = (s_perp2 < s2_edges[-1]) & (s_perp2 >= s2_edges[0]) \
                     & (pi2 < pi2_edges[-1]) & (pi2 >= pi2_edges[0])
                 W = soft_gaussian_weights(np.sqrt(s_perp2[keep]), s_edges,
-                                          sigma)
+                                          sigma, sigma_log=sigma_log)
                 if soft_pi_sigma is not None:
                     WP = soft_gaussian_weights(np.sqrt(pi2[keep]),
                                                np.asarray(pi_edges),
@@ -445,7 +453,8 @@ def brute_force_soft_sky(cats, wts, labels, pairs, s_edges, sigma,
                     np.add.at(out.T, jj, wprod[keep, None] * W)
             else:
                 keep = (s2 < s2_edges[-1]) & (s2 >= s2_edges[0])
-                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma)
+                W = soft_gaussian_weights(np.sqrt(s2[keep]), s_edges, sigma,
+                                          sigma_log=sigma_log)
                 out += (wprod[keep, None] * W).sum(axis=0)
 
         counts[pair] = out

@@ -89,6 +89,7 @@ typedef struct {
   real soft_sigma;      /* Gaussian kernel width (in rescaled units)      */
   int soft_mu;          /* indicate soft histogramming of the mu bins     */
   real soft_mu_sigma;   /* Gaussian kernel width in mu units              */
+  int soft_sigma_log;   /* sigma proportional to s: sigma(s) = f * s      */
   int soft_pi;          /* indicate soft histogramming of the pi bins     */
   real soft_pi_sigma;   /* Gaussian kernel width in pi units (rescaled)   */
 

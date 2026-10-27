@@ -719,3 +719,39 @@ def test_vjp_auto_deep_tree():
     an2 = float(np.sum(out2['grads']['A'] * v2))
     assert np.isclose(an2, fd2, rtol=1e-4, atol=1e-7 * abs(fd2)), \
         f"deep-tree auto sky: adjoint {an2} vs FD {fd2}"
+
+
+def test_vjp_sigma_log():
+    """Adjoint with the scale-dependent kernel width sigma(s) = f * s:
+    coordinate and f cotangents against finite differences."""
+    rng = np.random.default_rng(61)
+    import pyfcfc.boxes as boxes
+    d = rng.uniform(150, 250, (110, 3))
+    r = rng.uniform(150, 250, (90, 3))
+    w1 = rng.uniform(0.5, 1.5, len(d))
+    w2 = rng.uniform(0.5, 1.5, len(r))
+    se = np.geomspace(1.0, 150.0, 18)
+    f = 0.06
+    g = rng.normal(size=(len(se) - 1,))
+    kw = dict(label=['A', 'B'], bin=0, pair=['AB'], soft_hist=True,
+              soft_sigma=f, soft_sigma_log=True, box=400.)
+
+    def loss(x, ff=f):
+        res = boxes.py_compute_cf([x, r], [w1, w2], se, None, 1,
+                                  **{**kw, 'soft_sigma': ff})
+        return float(np.sum(g * res['pairs']['AB'] *
+                            res['normalization']['AB']))
+
+    v = rng.normal(size=d.shape)
+    eps = 1e-6
+    fd = (loss(d + eps * v) - loss(d - eps * v)) / (2 * eps)
+    out = boxes.soft_hist_vjp([d, r], [w1, w2], se, None, 1, pair='AB',
+                              cotangent=g, soft_sigma=f,
+                              soft_sigma_log=True, bin=0, box=400.,
+                              grad_sigma=True)
+    an = float(np.sum(out['grads']['A'] * v))
+    assert np.isclose(an, fd, rtol=1e-4, atol=1e-7 * abs(fd))
+    epsf = 1e-8
+    fdf = (loss(d, f + epsf) - loss(d, f - epsf)) / (2 * epsf)
+    assert np.isclose(out['grad_sigma'], fdf, rtol=1e-4,
+                      atol=1e-7 * abs(fdf))
