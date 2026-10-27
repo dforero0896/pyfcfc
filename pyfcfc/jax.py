@@ -32,7 +32,11 @@ Typical use::
 positions *and* the weights; all configuration (bins, kernel widths,
 labels, box, ...) is static.  The backward pass evaluates one
 ``soft_hist_vjp`` call per requested pair count and accumulates the
-cotangents of the involved catalogues.
+cotangents of the involved catalogues.  Both passes run in the C library
+via ``jax.pure_callback`` host calls, so the primitive can be evaluated
+eagerly or inside ``jax.jit`` (forward *and* gradients); its
+``custom_vjp`` object is created once per static configuration and
+cached, keeping JAX's tracing/compilation caches effective.
 
 Requires ``jax`` (CPU is fine); double precision is enabled on import
 (``jax_enable_x64``), matching the double-precision C kernels.
@@ -118,9 +122,14 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
     (module, bins, kernel options, labels, pairs, extra FCFC options) and
     cached in ``_PRIM_CACHE``, so repeated calls - also inside
     ``jax.jit``-compiled outer functions - reuse the same callable and
-    hence JAX's tracing/compilation caches.  The primitive itself calls
-    the C library on host arrays, so it must be evaluated eagerly (as in
-    all examples); it cannot be traced through ``jax.jit`` directly.
+    hence JAX's tracing/compilation caches.  The pair counting and its
+    adjoint run in the C library on host arrays, registered with XLA via
+    ``jax.pure_callback``; the primitive is therefore traceable and works
+    eagerly as well as under ``jax.jit``, for both the forward pass and
+    ``jax.grad``.  As with any OpenMP-parallel floating-point reduction,
+    multi-threaded runs may differ in the last bits (relative ~1e-15)
+    between calls, since the dynamic work distribution changes the
+    summation order; single-threaded runs are fully deterministic.
     """
     mod = _mod(module)
     pos = [jnp.asarray(p, jnp.float64) for p in positions]
@@ -151,12 +160,38 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
     def _raw(p_list, w_list):
         res = mod.py_compute_cf(p_list, w_list, s_edges, pedges, nmu, **opts)
         nrm = res['normalization']
-        return tuple(res['pairs'][p] * nrm[p] for p in pairs)
+        return tuple(np.asarray(res['pairs'][p] * nrm[p]) for p in pairs)
+
+    # static output shape of every pair count, set by the binning scheme
+    # (bin=0: (ns,); bin=1 (s, mu): (ns, nmu); bin=2 (s_perp, pi): (ns, npi))
+    bin_scheme = int(fcfc_kwargs.get('bin', 0))
+    if soft_mu and bin_scheme != 1:
+        raise ValueError("soft_mu=True requires the (s, mu) binning scheme: "
+                         "pass bin=1 and nmu")
+    if soft_pi and bin_scheme != 2:
+        raise ValueError("soft_pi=True requires the (s_perp, pi) binning "
+                         "scheme: pass bin=2 and pedges")
+    nb = len(s_edges) - 1
+    if bin_scheme == 1:
+        out_shape = (nb, int(nmu))
+    elif bin_scheme == 2:
+        if pedges is None:
+            raise ValueError("the (s_perp, pi) binning scheme (bin=2) "
+                             "requires pedges")
+        out_shape = (nb, len(pedges) - 1)
+    else:
+        out_shape = (nb,)
 
     def base(*args):
-        p_list = [np.asarray(a) for a in args[:ncat]]
-        w_list = [np.asarray(a) for a in args[ncat:]]
-        return tuple(jnp.asarray(c) for c in _raw(p_list, w_list))
+        # The C library runs on host arrays.  jax.pure_callback exposes it
+        # to XLA as a host call, so the primitive is traceable: it can be
+        # evaluated eagerly *and* inside jax.jit (forward and gradient).
+        def _call(*host_args):
+            return _raw([np.asarray(a) for a in host_args[:ncat]],
+                        [np.asarray(a) for a in host_args[ncat:]])
+        shapes = (jax.ShapeDtypeStruct(out_shape, jnp.float64),) * len(pairs)
+        return jax.pure_callback(_call, shapes, *args,
+                                 vmap_method="sequential")
 
     vjp_opts = dict(fcfc_kwargs)
     vjp_opts['label'] = labels      # soft_hist_vjp takes the pair separately
@@ -172,27 +207,40 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
             return base(*args), args
 
         def bwd(args, g):
-            p_list = [np.asarray(a) for a in args[:ncat]]
-            w_list = [np.asarray(a) for a in args[ncat:]]
-            gx = [np.zeros_like(p) for p in p_list]
-            gw = [np.zeros_like(w) for w in w_list]
-            for pair, cot in zip(pairs, g):
-                out = mod.soft_hist_vjp(p_list, w_list, s_edges, pedges,
-                                        nmu, pair=pair,
-                                        cotangent=np.asarray(cot),
-                                        soft_sigma=soft_sigma,
-                                        soft_mu=soft_mu,
-                                        soft_mu_sigma=soft_mu_sigma,
-                                        soft_pi=soft_pi,
-                                        soft_pi_sigma=soft_pi_sigma,
-                                        soft_sigma_log=soft_sigma_log,
-                                        grad_wts=True, **vjp_opts)
-                for idx, lab in enumerate(labels):
-                    if lab in out['grads']:
-                        gx[idx] = gx[idx] + np.asarray(out['grads'][lab])
-                    if out['grad_wts'] and lab in out['grad_wts']:
-                        gw[idx] = gw[idx] + np.asarray(out['grad_wts'][lab])
-            return tuple(jnp.asarray(a) for a in gx + gw)
+            # The whole adjoint accumulation runs in one host callback, so
+            # jax.grad of a jax.jit-compiled function works as well (the
+            # residual catalogues and the output cotangents are passed as
+            # callback arguments).
+            shapes = tuple(jax.ShapeDtypeStruct(a.shape, a.dtype)
+                           for a in args)
+
+            def _call(*host_args):
+                p_list = [np.asarray(a) for a in host_args[:ncat]]
+                w_list = [np.asarray(a) for a in host_args[ncat:2 * ncat]]
+                g_list = [np.asarray(a) for a in host_args[2 * ncat:]]
+                gx = [np.zeros_like(p) for p in p_list]
+                gw = [np.zeros_like(w) for w in w_list]
+                for pair, cot in zip(pairs, g_list):
+                    out = mod.soft_hist_vjp(p_list, w_list, s_edges, pedges,
+                                            nmu, pair=pair,
+                                            cotangent=cot,
+                                            soft_sigma=soft_sigma,
+                                            soft_mu=soft_mu,
+                                            soft_mu_sigma=soft_mu_sigma,
+                                            soft_pi=soft_pi,
+                                            soft_pi_sigma=soft_pi_sigma,
+                                            soft_sigma_log=soft_sigma_log,
+                                            grad_wts=True, **vjp_opts)
+                    for idx, lab in enumerate(labels):
+                        if lab in out['grads']:
+                            gx[idx] = gx[idx] + np.asarray(out['grads'][lab])
+                        if out['grad_wts'] and lab in out['grad_wts']:
+                            gw[idx] = (gw[idx] +
+                                       np.asarray(out['grad_wts'][lab]))
+                return tuple(gx + gw)
+
+            return jax.pure_callback(_call, shapes, *args, *g,
+                                     vmap_method="sequential")
 
         prim.defvjp(fwd, bwd)
         _PRIM_CACHE[key] = prim
