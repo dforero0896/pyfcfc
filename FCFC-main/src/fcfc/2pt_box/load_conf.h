@@ -60,6 +60,7 @@ typedef struct {
   double soft_sigma;    /* SOFT_SIGMA           */
   bool soft_mu;         /* SOFT_MU              */
   double soft_mu_sigma; /* SOFT_MU_SIGMA        */
+  bool soft_sigma_log;  /* SOFT_SIGMA_LOG       */
   bool soft_pi;         /* SOFT_PI              */
   double soft_pi_sigma; /* SOFT_PI_SIGMA        */
   char **pc;            /* PAIR_COUNT           */

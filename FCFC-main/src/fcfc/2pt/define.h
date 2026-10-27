@@ -121,6 +121,7 @@
 #define DEFAULT_SOFT_HIST               false
 #define DEFAULT_SOFT_MU                 false
 #define DEFAULT_SOFT_PI                 false
+#define DEFAULT_SOFT_SIGMA_LOG        false
 /* Gaussian kernel width for soft histogramming, in input units.
  * 0 means "automatic": half the mean separation bin width. */
 #define DEFAULT_SOFT_SIGMA              0

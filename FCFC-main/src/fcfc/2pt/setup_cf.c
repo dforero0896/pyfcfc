@@ -698,12 +698,22 @@ CF *cf_setup(const CONF *conf, DATA* data, real* sbins, int ns, real* pbins, int
   cf->soft = conf->soft ? 1 : 0;
   cf->soft_mu = conf->soft_mu ? 1 : 0;
   cf->soft_pi = conf->soft_pi ? 1 : 0;
+  cf->soft_sigma_log = conf->soft_sigma_log ? 1 : 0;
   if (cf->soft) {
-    /* SOFT_SIGMA is given in input units: rescale it like the coordinates.
-     * The default (0) means half the mean separation bin width. */
-    cf->soft_sigma = (conf->soft_sigma > 0) ?
-        (real) conf->soft_sigma * cf->rescale :
-        0.5 * (cf->sbin[cf->ns] - cf->sbin[0]) / cf->ns;
+    if (cf->soft_sigma_log) {
+      /* sigma(s) = f * s with a dimensionless f: no rescaling; the default
+       * is half the mean logarithmic bin width. */
+      cf->soft_sigma = (conf->soft_sigma > 0) ? (real) conf->soft_sigma :
+          (real) (0.5 * log((double) (cf->sbin[cf->ns] / cf->sbin[0])) /
+          cf->ns);
+    }
+    else {
+      /* SOFT_SIGMA is given in input units: rescale it like the
+       * coordinates.  The default (0) means half the mean bin width. */
+      cf->soft_sigma = (conf->soft_sigma > 0) ?
+          (real) conf->soft_sigma * cf->rescale :
+          0.5 * (cf->sbin[cf->ns] - cf->sbin[0]) / cf->ns;
+    }
     if (conf->verbose)
       printf("  Soft histogramming enabled (Gaussian kernel sigma: %g)\n",
           (double) (cf->soft_sigma / cf->rescale));

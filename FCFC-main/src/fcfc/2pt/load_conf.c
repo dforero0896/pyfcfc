@@ -134,6 +134,7 @@ static cfg_t *conf_read(CONF *conf, const int argc, char *const *argv) {
     { 0 , "soft-sigma"  , "SOFT_SIGMA"     , CFG_DTYPE_DBL , &conf->soft_sigma },
     { 0 , "soft-mu"     , "SOFT_MU"        , CFG_DTYPE_BOOL, &conf->soft_mu   },
     { 0 , "soft-mu-sigma", "SOFT_MU_SIGMA" , CFG_DTYPE_DBL , &conf->soft_mu_sigma },
+    { 0 , "soft-sigma-log", "SOFT_SIGMA_LOG", CFG_DTYPE_BOOL, &conf->soft_sigma_log },
     { 0 , "soft-pi"     , "SOFT_PI"        , CFG_DTYPE_BOOL, &conf->soft_pi   },
     { 0 , "soft-pi-sigma", "SOFT_PI_SIGMA" , CFG_DTYPE_DBL , &conf->soft_pi_sigma },
     {'p', "pair"        , "PAIR_COUNT"     , CFG_ARRAY_STR , &conf->pc      },
@@ -490,6 +491,10 @@ static int conf_verify(const cfg_t *cfg, CONF *conf) {
     P_ERR("invalid " FMT_KEY(SOFT_MU_SIGMA) ": %g\n", conf->soft_mu_sigma);
     return FCFC_ERR_CFG;
   }
+
+  /* SOFT_SIGMA_LOG */
+  if (!cfg_is_set(cfg, &conf->soft_sigma_log))
+    conf->soft_sigma_log = DEFAULT_SOFT_SIGMA_LOG;
 
   /* SOFT_PI */
   if (!cfg_is_set(cfg, &conf->soft_pi)) conf->soft_pi = DEFAULT_SOFT_PI;

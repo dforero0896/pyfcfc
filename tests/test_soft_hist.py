@@ -546,3 +546,46 @@ def test_soft_pi_sigma_to_zero_matches_hard(box_catalogs):
                 'DD')
     assert_counts_close(soft, hard, rtol=1e-9, atol=1.0,
                         msg="sigma_pi -> 0 limit")
+
+
+# ============================================================================
+#  Scale-dependent kernel width: sigma(s) = f * s (logarithmic bins)
+# ============================================================================
+
+def test_soft_sigma_log_box(box_catalogs):
+    """Logarithmic separation bins with sigma(s) = f * s."""
+    from brute_force import brute_force_soft_box
+    cat = box_catalogs
+    data, rand, box = cat['data'][:800], cat['rand'][:800], cat['box']
+    w1, w2 = cat['w_data'][:800], cat['w_rand'][:800]
+    s_edges = np.geomspace(1.0, 80.0, 25)
+    f = 0.06
+    res = py_compute_cf([data, rand], [w1, w2], s_edges, None, 1,
+                        soft_hist=True, soft_sigma=f, soft_sigma_log=True,
+                        label=['D', 'R'], bin=0, pair=['DD', 'DR'], box=box)
+    ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'],
+                               ['DD', 'DR'], s_edges, box, f, sigma_log=True)
+    for pair in ('DD', 'DR'):
+        assert_counts_close(_raw(res, pair), ref['counts'][pair],
+                            rtol=1e-9, atol=1e-6, msg=f"log-sigma {pair}")
+    hard = py_compute_cf([data, rand], [w1, w2], s_edges, None, 1,
+                         label=['D', 'R'], bin=0, pair=['DD', 'DR'], box=box)
+    for pair in ('DD', 'DR'):
+        assert np.isclose(_raw(res, pair).sum(), _raw(hard, pair).sum(),
+                          rtol=1e-11)
+
+
+def test_soft_sigma_log_sky(sky_catalogs):
+    from brute_force import brute_force_soft_sky
+    cat = sky_catalogs
+    xyz = cat['xyz'][:700]
+    w = cat['w'][:700]
+    s_edges = np.geomspace(5.0, 300.0, 20)
+    f = 0.08
+    res = sky.py_compute_cf([xyz], [w], s_edges, None, 1, soft_hist=True,
+                            soft_sigma=f, soft_sigma_log=True,
+                            label=['D'], bin=0, pair=['DD'])
+    ref = brute_force_soft_sky([xyz], [w], ['D'], ['DD'], s_edges, f,
+                               sigma_log=True)
+    assert_counts_close(_raw(res, 'DD'), ref['counts']['DD'], rtol=1e-9,
+                        atol=1e-6, msg="sky log-sigma DD")
