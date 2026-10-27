@@ -358,6 +358,37 @@ realistic logarithmic r_p bins this way (scale-free kernel
 with Adam; `figures/soft_hist_wp.png`, and a kernel-width comparison in
 `figures/soft_hist_wp_sigmas.png`).
 
+**JIT caching and recompilation.** Under `jax.jit`, only the *first*
+call for a given input signature (array shapes/dtypes plus the static
+configuration) pays the tracing + XLA compilation cost; every subsequent
+call reuses the cached executable - there is no recompilation.
+`examples/benchmark_jit_cache.py` measures exactly this (DD counts, 20
+log-spaced s bins 0.5-40 Mpc/h, scale-free kernel `sigma(s) = f * s`;
+recorded on a 2-vCPU Linux box, jax 0.10.2, 2 OpenMP threads - absolute
+times are machine-dependent, the pattern is not):
+
+| N | jitted call | first run | all subsequent runs | speedup |
+|---|-------------|-----------|---------------------|---------|
+| 400 | forward | 32 ms | 0.9 ms each | ~35x |
+| 400 | `jax.grad` | 24 ms | 1.0 ms each | ~24x |
+| 4000 | forward | ~30-60 ms | ~10 ms each | ~3-6x |
+
+Per-call series of the jitted forward at N = 400 (ms):
+`[32.2, 0.9, 0.9, 0.9, 0.9, 0.8, 0.9, 0.9, 0.9, 0.9]` - only the first
+call compiles.  At N = 400 a warm jitted call is also ~17x cheaper than
+an eager (non-jit) one, because `jax.jit` additionally amortises the
+Python-side argument packing of `soft_pair_counts`; at N = 4000 the C
+pair counting itself (~10 ms here) dominates every call.  A new input
+shape (e.g. a different number of points) triggers exactly one extra
+compilation; repeated calls with it reuse that one too.  The tests
+assert both the compilation-cache sizes (where the installed jax exposes
+`fn._cache_size()`) and a first-vs-subsequent timing check that works
+on any jax version (`tests/test_soft_vjp_jax.py`).  The module adapts
+to the `jax.pure_callback` API across jax versions (`vmap_method` on
+jax >= 0.4.31, `vectorized` on older releases); run
+`python examples/benchmark_jit_cache.py` (optionally `--json FILE`) to
+reproduce the numbers on your machine.
+
 ### Result dictionary
 
 | key                | shape / content |
