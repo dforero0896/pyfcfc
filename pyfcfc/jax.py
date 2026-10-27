@@ -39,8 +39,22 @@ eagerly or inside ``jax.jit`` (forward *and* gradients); its
 cached, keeping JAX's tracing/compilation caches effective.
 
 Requires ``jax`` (CPU is fine); double precision is enabled on import
-(``jax_enable_x64``), matching the double-precision C kernels.
+(``jax_enable_x64``), matching the double-precision C kernels.  The
+``jax.pure_callback`` vmapping keyword is resolved against the installed
+jax (``vmap_method="sequential"`` on jax >= 0.4.31, ``vectorized=False``
+on older releases), so the module works across jax versions.
+
+JIT behaviour: one ``custom_vjp`` primitive is created per static
+configuration and cached in ``_PRIM_CACHE``; ``jax.jit`` then compiles
+one executable per input signature (shape/dtype).  The first jitted call
+with a given signature pays the tracing + XLA compilation cost, every
+subsequent call reuses the cached executable (no recompilation).
+``examples/benchmark_jit_cache.py`` measures first-run vs subsequent-run
+timings; ``tests/test_soft_vjp_jax.py`` asserts the same (compilation
+cache sizes and timings).
 """
+
+import inspect
 
 import numpy as np
 
@@ -54,6 +68,35 @@ jax.config.update("jax_enable_x64", True)
 
 __all__ = ["soft_pair_counts", "pair_normalizations", "xi_landy_szalay",
            "multipoles", "projected_wp", "legpoly"]
+
+
+# The vmapping control of jax.pure_callback was renamed in jax 0.4.31:
+# `vectorized=False` (older) became `vmap_method="sequential"` (newer).
+# Both request the same behaviour here - the C kernels are not vmapped,
+# jax loops over a batched axis instead - so resolve the spelling once
+# against the installed jax (and fall back to the other one on a
+# TypeError, in case the signature ever disagrees with the behaviour).
+try:
+    _PURE_CB_KW = ({"vmap_method": "sequential"}
+                   if "vmap_method" in
+                   inspect.signature(jax.pure_callback).parameters
+                   else {"vectorized": False})
+except (TypeError, ValueError):        # not introspectable: assume newest
+    _PURE_CB_KW = {"vmap_method": "sequential"}
+
+
+def _pure_callback(callback, result_shape_dtypes, *args):
+    """jax.pure_callback with the vmapping kwarg of the installed jax."""
+    global _PURE_CB_KW
+    try:
+        return jax.pure_callback(callback, result_shape_dtypes, *args,
+                                 **_PURE_CB_KW)
+    except TypeError:
+        _PURE_CB_KW = ({"vectorized": False}
+                       if "vmap_method" in _PURE_CB_KW
+                       else {"vmap_method": "sequential"})
+        return jax.pure_callback(callback, result_shape_dtypes, *args,
+                                 **_PURE_CB_KW)
 
 
 def _mod(module):
@@ -190,8 +233,7 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
             return _raw([np.asarray(a) for a in host_args[:ncat]],
                         [np.asarray(a) for a in host_args[ncat:]])
         shapes = (jax.ShapeDtypeStruct(out_shape, jnp.float64),) * len(pairs)
-        return jax.pure_callback(_call, shapes, *args,
-                                 vmap_method="sequential")
+        return _pure_callback(_call, shapes, *args)
 
     vjp_opts = dict(fcfc_kwargs)
     vjp_opts['label'] = labels      # soft_hist_vjp takes the pair separately
@@ -239,8 +281,7 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
                                        np.asarray(out['grad_wts'][lab]))
                 return tuple(gx + gw)
 
-            return jax.pure_callback(_call, shapes, *args, *g,
-                                     vmap_method="sequential")
+            return _pure_callback(_call, shapes, *args, *g)
 
         prim.defvjp(fwd, bwd)
         _PRIM_CACHE[key] = prim

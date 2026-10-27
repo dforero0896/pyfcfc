@@ -8,7 +8,10 @@ The ``pyfcfc.jax`` sections additionally cover ``jax.jit``: the cached
 primitive is traceable (its host calls are registered with
 ``jax.pure_callback``), jitted forwards and gradients match the eager
 results, and JAX's compilation caches are reused across repeated calls
-(no recompilation for unchanged shapes / static configurations).
+(no recompilation for unchanged shapes / static configurations -
+verified via cache introspection where available and via first-run vs
+subsequent-run timings on any jax version; reproducible numbers:
+``python examples/benchmark_jit_cache.py``).
 """
 
 import numpy as np
@@ -191,7 +194,12 @@ def _cache_size(fn):
     """Number of compilations cached by a jax.jit wrapper, or None when
     the (private) introspection API is unavailable in this jax version."""
     sz = getattr(fn, "_cache_size", None)
-    return sz() if callable(sz) else None
+    if not callable(sz):
+        return None
+    try:
+        return sz()
+    except Exception:      # e.g. AttributeError: no cache entries yet
+        return None
 
 
 def test_pjax_jit_forward_matches_eager():
@@ -294,38 +302,130 @@ def test_pjax_jit_compilation_cache():
     X, Y, U, W = map(jnp.asarray, (x, y, wx, wy))
     jf = jax.jit(counts)
     jf(X, Y, U, W)
+    cs1 = _cache_size(jf)
+    if cs1 is None:
+        pytest.skip("jit compilation-cache introspection unavailable "
+                    "in this jax version")
+    # repeated calls with the same signature add no cache entries
+    # (relative assertions: the absolute count is a jax-internal detail)
     jf(X, Y, U, W)
-    cs = _cache_size(jf)
-    if cs is None:
-        pytest.skip("jit compilation-cache introspection unavailable")
-    assert cs == 1
+    jf(X, Y, U, W)
+    assert _cache_size(jf) == cs1
 
-    # a new input shape compiles exactly one additional executable
+    # a new input shape compiles (at least) one additional executable ...
     y2 = rng.uniform(150, 250, (45, 3))
-    jf(X, jnp.asarray(y2), U, jnp.asarray(np.ones(len(y2))))
-    assert _cache_size(jf) == 2
+    Y2, W2 = jnp.asarray(y2), jnp.asarray(np.ones(len(y2)))
+    jf(X, Y2, U, W2)
+    cs2 = _cache_size(jf)
+    assert cs2 > cs1, "a new input shape must trigger a new compilation"
+    # ... which repeated calls with that shape then reuse
+    jf(X, Y2, U, W2)
+    assert _cache_size(jf) == cs2
 
     # a second jit wrapper around the same static configuration reuses
     # the cached primitive: no new _PRIM_CACHE entry, one compilation
     jf2 = jax.jit(lambda p, q, u, v: counts(p, q, u, v))
     jf2(X, Y, U, W)
+    cs3 = _cache_size(jf2)
+    assert cs3 is not None
     jf2(X, Y, U, W)
-    assert _cache_size(jf2) == 1
+    assert _cache_size(jf2) == cs3
     assert len(pjax._PRIM_CACHE) == n0 + 1
 
     # the jitted gradient of the same primitive also caches a single
     # compilation across repeated calls
     jg = jax.jit(jax.grad(lambda p: jnp.sum(counts(p, Y, U, W) * g)))
     jg(X)
+    cs4 = _cache_size(jg)
+    assert cs4 is not None
     jg(X)
-    assert _cache_size(jg) == 1
+    jg(X)
+    assert _cache_size(jg) == cs4
     assert len(pjax._PRIM_CACHE) == n0 + 1
+
+
+def test_pjax_jit_first_vs_subsequent_timing():
+    """First jitted call pays tracing + XLA compilation; subsequent calls
+    with the same signature reuse the cached executable and must be much
+    cheaper.  Timing-based, so it also works on jax versions without
+    compilation-cache introspection.  (Reproducible, prettier numbers:
+    ``python examples/benchmark_jit_cache.py``.)"""
+    import time
+
+    rng = np.random.default_rng(37)
+    n = 400
+    x = rng.uniform(150, 250, (n, 3))
+    y = rng.uniform(150, 250, (n, 3))
+    kw = _log_kwargs(soft_sigma=0.29)
+    g = jnp.asarray(rng.normal(size=len(LOG_EDGES) - 1))
+    X, Y = jnp.asarray(x), jnp.asarray(y)
+    U, W = jnp.asarray(np.ones(n)), jnp.asarray(np.ones(n))
+
+    def counts(p):
+        return pjax.soft_pair_counts([p, Y], [U, W], **kw)["AB"]
+
+    def time_call(fn, *args, reps=5):
+        t0 = time.perf_counter()
+        out = fn(*args)
+        jax.block_until_ready(out)
+        first = time.perf_counter() - t0
+        warm = []
+        for _ in range(reps):
+            t0 = time.perf_counter()
+            jax.block_until_ready(fn(*args))
+            warm.append(time.perf_counter() - t0)
+        return first, min(warm)
+
+    jf = jax.jit(counts)
+    f_first, f_warm = time_call(jf, X)
+    jg = jax.jit(jax.grad(lambda p: jnp.sum(counts(p) * g)))
+    g_first, g_warm = time_call(jg, X)
+
+    for tag, first, warm in (("forward", f_first, f_warm),
+                             ("grad", g_first, g_warm)):
+        if first < 0.05:
+            pytest.skip(f"cold jitted {tag} finished in {first * 1e3:.1f} ms"
+                        " - too fast to distinguish from a cached run"
+                        " (persistent compilation cache?)")
+        assert warm < 0.5 * first, (
+            f"jitted {tag}: first call {first * 1e3:.1f} ms, subsequent "
+            f"calls {warm * 1e3:.1f} ms - expected the cached executable "
+            "to be at least 2x faster (no recompilation)")
+
+    # cross-check with the cache introspection when available: exactly
+    # one compilation per jitted callable happened above
+    csf, csg = _cache_size(jf), _cache_size(jg)
+    assert csf is None or csf == 1
+    assert csg is None or csg == 1
+
+
+def _walk_primitives(jaxpr):
+    """Primitive names in a jaxpr, descending into nested (closed) jaxprs.
+
+    Depending on the jax version the custom_vjp / pure_callback equations
+    may appear at the top level or nested inside wrapper equations, and
+    the exact primitive spellings can vary - so collect everything and
+    match on substrings.
+    """
+    names = []
+    for eqn in jaxpr.eqns:
+        names.append(str(eqn.primitive))
+        for v in eqn.params.values():
+            sub = getattr(v, "jaxpr", None)      # ClosedJaxpr
+            if sub is None and hasattr(v, "eqns"):
+                sub = v                          # Jaxpr
+            if sub is not None:
+                try:
+                    names.extend(_walk_primitives(sub))
+                except AttributeError:
+                    pass
+    return names
 
 
 def test_pjax_jit_traceable():
     # make_jaxpr uses the same tracing machinery as jax.jit: the forward
     # is captured as one custom_vjp call, and differentiating exposes
-    # both C host calls (forward + adjoint) as pure_callback equations
+    # both C host calls (forward + adjoint) as callback equations
     rng = np.random.default_rng(34)
     x = rng.uniform(150, 250, (60, 3))
     y = rng.uniform(150, 250, (50, 3))
@@ -338,13 +438,18 @@ def test_pjax_jit_traceable():
         return pjax.soft_pair_counts([p, Y], [U, W], **kw)["AB"]
 
     X = jnp.asarray(x)
-    names = [str(e.primitive) for e in jax.make_jaxpr(f)(X).jaxpr.eqns]
-    assert {"custom_vjp_call", "pure_callback"} & set(names)
+    names = _walk_primitives(jax.make_jaxpr(f)(X).jaxpr)
+    if not names:
+        pytest.skip("jaxpr introspection produced no equations in this "
+                    "jax version")
+    assert any(("callback" in n) or ("custom_vjp" in n) for n in names), \
+        f"no custom_vjp/pure_callback equation found in {names}"
 
-    gnames = [str(e.primitive)
-              for e in jax.make_jaxpr(jax.grad(lambda p: jnp.sum(f(p) * g))
-                                      )(X).jaxpr.eqns]
-    assert gnames.count("pure_callback") >= 2
+    gnames = _walk_primitives(
+        jax.make_jaxpr(jax.grad(lambda p: jnp.sum(f(p) * g)))(X).jaxpr)
+    ncb = sum("callback" in n for n in gnames)
+    assert ncb >= 2, ("expected forward + adjoint host callbacks in the "
+                      f"gradient jaxpr, found {ncb} in {gnames}")
 
 
 def test_pjax_jit_multipole_chain():

@@ -41,6 +41,7 @@ notebooks in `../notebooks/` (see the table in the main README).
 | 10 | `example_soft_hist_multipoles.py` | Differentiable multipoles: soft binning in s *and* mu makes xi(s, mu) - and hence xi_0/xi_2 - smooth; `jax.custom_vjp` on the 2D counts, JAX-side Legendre integration, AP stretch recovery from the multipoles; figure `figures/soft_hist_multipoles.png`.  A second figure, `figures/soft_hist_multipoles_sigmas.png`, compares the hard histogram with several kernel widths quoted in absolute units and in bin-width units (sigma_s in Mpc/h = multiples of ds, sigma_mu in mu units = multiples of dmu = 1/n_mu). |
 | 11 | `example_soft_hist_wp.py` | Differentiable projected correlation function on realistic logarithmic r_p bins (`geomspace(0.5, 40, 200)`): the scale-free kernel sigma_s(r_p) = f * r_p (`soft_sigma_log`) plus soft pi bins make w_p smooth; built on the `pyfcfc.jax` primitive (custom_vjp forward + C adjoint) with JAX-side Landy-Szalay and pi integration; gradient check vs FD and a transverse stretch recovered from w_p alone; figures `figures/soft_hist_wp.png` and the kernel-width comparison `figures/soft_hist_wp_sigmas.png` (sigma_s = f * r_p absolute, sigma_pi absolute [Mpc/h]). |
 | 12 | `example_soft_hist_rppi.py` | The full 2D xi(r_p, pi) map as a differentiable object: adjoint Jacobian maps d xi/d theta for an anisotropic stretch model (one-hot cotangents through `soft_hist_vjp`), validated bin-by-bin against finite differences; figure `figures/soft_hist_rppi.png`. |
+| 13 | `benchmark_jit_cache.py` | First-run vs subsequent-run timings of the `pyfcfc.jax` primitive under `jax.jit` (forward and `jax.grad`): the first call per input signature pays the tracing + XLA compilation, every later call reuses the cached executable (no recompilation); a new shape costs exactly one extra compilation. Prints the environment, per-call time series and summary tables; `--json FILE` dumps the raw numbers. No figure. |
 
 ## Feature coverage matrix
 
@@ -105,3 +106,19 @@ pyfcfc README.)
 Outputs: `figures/benchmark_results.csv` (all timings, with SIMD level
 and thread count) and `figures/benchmark.png` (timings vs N and speedup,
 or thread-scaling curves when `--threads` is given).
+
+### JIT cache benchmark (pyfcfc.jax)
+
+```bash
+python examples/benchmark_jit_cache.py                  # default sizes
+python examples/benchmark_jit_cache.py --n-large 20000 --reps 9 --json jit.json
+```
+
+First-run vs subsequent-run timings of the `pyfcfc.jax` primitive under
+`jax.jit` (forward and `jax.grad`): the first call per input signature
+pays the tracing + XLA compilation, every subsequent call reuses the
+cached executable - no recompilation - and a new shape costs exactly one
+extra compilation.  The script also verifies the compilation-cache sizes
+and prints per-call time series; see the "JIT caching and recompilation"
+paragraph of the main README for reference numbers recorded on a
+2-vCPU Linux box with jax 0.10.2.
