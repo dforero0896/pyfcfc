@@ -199,6 +199,7 @@ What remains of the file machinery, and stays supported:
 | `bin`                   | ✔ | ✔ | binning scheme: 0 = isotropic, 1 = (s, mu), 2 = (s_perp, pi) |
 | `soft_hist`             | ✔ | ✔ | soft histogramming: spread every pair over all separation bins with softmax Gaussian-kernel weights (experimental) |
 | `soft_sigma`            | ✔ | ✔ | Gaussian kernel width in the units of `sedges` (default: half the mean bin width); requires `soft_hist` |
+| `soft_sigma_log`        | ✔ | ✔ | interpret `soft_sigma` as a dimensionless fraction f with a scale-dependent kernel width sigma(s) = f * s, in the units of `sedges` (for logarithmic separation bins); requires `soft_hist` |
 | `soft_mu`               | ✔ | ✔ | soft histogramming of the mu dimension of the (s, mu) scheme: softmax Gaussian kernel over the mu bin centres (`bin=1` only) |
 | `soft_mu_sigma`         | ✔ | ✔ | mu kernel width in mu units (default: half the mu bin width); requires `soft_mu` |
 | `soft_pi`               | ✔ | ✔ | soft histogramming of the pi dimension of the (s_perp, pi) scheme (`bin=2`), making w_p differentiable |
@@ -244,7 +245,19 @@ width).  Since the softmax weights sum to one, the total weight of all
 pairs with `smin <= s < smax` is conserved exactly: the soft histogram is a
 kernel-smoothed version of the hard one, and the two are directly
 comparable (soft counts converge to the hard counts in the `sigma -> 0`
-limit).  Properties and limitations:
+limit).  With `soft_sigma_log=True` (`SOFT_SIGMA_LOG = T`) the width is
+instead *scale dependent*: `soft_sigma` is then interpreted as a
+dimensionless fraction f and the kernel width becomes `sigma(s) = f * s`
+(in the units of `sedges`, evaluated at each pair's separation).  This is
+the natural choice for logarithmic separation bins, where a fixed sigma
+would wash out the small bins while barely smoothing the large ones:
+locally the bin width is ~ s · dln s, so the ratio sigma / bin width =
+f / dln s is the same at every scale.  The default f (`soft_sigma=None`)
+is half the mean logarithmic bin width, i.e. sigma equals half the local
+bin width everywhere.  The mu and pi kernels always take fixed *absolute*
+widths (`soft_mu_sigma` in mu units, `soft_pi_sigma` in the units of
+`pedges`): FCFC's mu bins are uniform on [0, 1) by construction, and no
+log scaling is offered for pi.  Properties and limitations:
 
 - the mu (`bin=1`) and pi (`bin=2`) dimensions remain hard-binned unless `soft_mu=True` / `soft_pi=True` are set: soft binning them makes the 2D counts smooth in *both* arguments, hence the multipoles xi_ell(s) and the projected correlation function w_p (linear operators on xi(s, mu) / xi(s_perp, pi)) become differentiable as well;
 - pair counts become fractional and are always accumulated in double
@@ -322,6 +335,26 @@ catalogue (one shift per axis) is recovered by Adam on the loss
 contracting the `soft_hist_vjp` coordinate cotangents (gradient check vs
 finite differences and the rigid-translation null direction included;
 `figures/soft_hist_fit.png`).
+
+**JAX integration.** The optional `pyfcfc.jax` module (requires `jax`)
+packages the forward + adjoint into a ready-made autodiff primitive:
+`soft_pair_counts(positions, weights, module=..., s_edges=..., ...)` is a
+`jax.custom_vjp` function returning the raw pair counts as JAX arrays,
+differentiable with respect to the catalogue positions *and* weights (its
+forward calls `py_compute_cf`, its backward `soft_hist_vjp`).  The
+primitive is created once per static configuration and cached, so
+repeated calls - also inside `jax.jit`-compiled outer functions - reuse
+the same callable and hence JAX's tracing/compilation caches; since the C
+library is invoked on host arrays, the primitive itself is eager-only (it
+cannot be traced through `jax.jit` directly).  The helpers
+`pair_normalizations`, `xi_landy_szalay`, `multipoles`, `projected_wp`
+and `legpoly` implement FCFC's conventions in JAX, so a whole xi /
+multipole / w_p pipeline becomes differentiable with plain `jax.grad`.
+`examples/example_soft_hist_wp.py` builds a differentiable w_p on
+realistic logarithmic r_p bins this way (scale-free kernel
+`sigma(s) = f * s` via `soft_sigma_log`, transverse stretch recovered
+with Adam; `figures/soft_hist_wp.png`, and a kernel-width comparison in
+`figures/soft_hist_wp_sigmas.png`).
 
 ### Result dictionary
 

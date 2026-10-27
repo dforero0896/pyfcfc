@@ -84,3 +84,84 @@ def test_jax_chain_rule_through_parameterisation():
     eps = 1e-6
     fd = (float(loss(theta0 + eps)) - float(loss(theta0 - eps))) / (2 * eps)
     assert np.isclose(an, fd, rtol=1e-4, atol=1e-7 * abs(fd))
+
+
+# ----------------------------------------------------------------------
+# the optional pyfcfc.jax module: cached custom_vjp primitive, gradients
+# in positions and weights with the scale-free kernel (soft_sigma_log)
+# ----------------------------------------------------------------------
+
+from pyfcfc import jax as pjax  # noqa: E402
+
+LOG_EDGES = np.geomspace(2.0, 120.0, 13)
+
+
+def _log_kwargs(**over):
+    kw = dict(module="boxes", s_edges=LOG_EDGES, pairs=("AB",),
+              labels=["A", "B"], soft_sigma_log=True, bin=0, box=BOX)
+    kw.update(over)
+    return kw
+
+
+def test_pjax_primitive_cache_reuse():
+    rng = np.random.default_rng(21)
+    x = rng.uniform(150, 250, (60, 3))
+    y = rng.uniform(150, 250, (50, 3))
+    w = np.ones(len(x))
+    wr = np.ones(len(y))
+    n0 = len(pjax._PRIM_CACHE)
+
+    c1 = pjax.soft_pair_counts([x, y], [w, wr], **_log_kwargs())
+    n1 = len(pjax._PRIM_CACHE)
+    assert n1 == n0 + 1
+
+    # repeated forward calls, and a backward pass through the same
+    # static configuration, must reuse the cached primitive
+    c2 = pjax.soft_pair_counts([x, y], [w, wr], **_log_kwargs())
+    g = jnp.asarray(rng.normal(size=c1["AB"].shape))
+    jax.grad(lambda p: jnp.sum(
+        pjax.soft_pair_counts([p, jnp.asarray(y)],
+                              [jnp.asarray(w), jnp.asarray(wr)],
+                              **_log_kwargs())["AB"] * g))(jnp.asarray(x))
+    assert len(pjax._PRIM_CACHE) == n1
+    np.testing.assert_allclose(np.asarray(c1["AB"]), np.asarray(c2["AB"]),
+                               rtol=1e-12)
+
+    # a different static configuration adds exactly one new entry
+    pjax.soft_pair_counts([x, y], [w, wr],
+                          **_log_kwargs(soft_sigma_log=False,
+                                        soft_sigma=3.0))
+    assert len(pjax._PRIM_CACHE) == n1 + 1
+
+
+def test_pjax_grad_fd_sigma_log():
+    rng = np.random.default_rng(22)
+    x = rng.uniform(150, 250, (60, 3))
+    y = rng.uniform(150, 250, (50, 3))
+    wx = rng.uniform(0.5, 1.5, len(x))
+    g = jnp.asarray(rng.normal(size=len(LOG_EDGES) - 1))
+    yj = jnp.asarray(y)
+    wyj = jnp.ones(len(y))
+
+    def loss_x(p):
+        c = pjax.soft_pair_counts([p, yj], [jnp.asarray(wx), wyj],
+                                  **_log_kwargs())
+        return jnp.sum(c["AB"] * g)
+
+    def loss_w(w):
+        c = pjax.soft_pair_counts([jnp.asarray(x), yj], [w, wyj],
+                                  **_log_kwargs())
+        return jnp.sum(c["AB"] * g)
+
+    eps = 1e-6
+    v = rng.normal(size=x.shape)
+    an = float(jnp.sum(jax.grad(loss_x)(jnp.asarray(x)) * v))
+    fd = (float(loss_x(jnp.asarray(x + eps * v))) -
+          float(loss_x(jnp.asarray(x - eps * v)))) / (2 * eps)
+    assert np.isclose(an, fd, rtol=1e-4, atol=1e-7 * abs(fd))
+
+    u = rng.uniform(0.5, 1.5, len(x))
+    an = float(jnp.sum(jax.grad(loss_w)(jnp.asarray(wx)) * u))
+    fd = (float(loss_w(jnp.asarray(wx + eps * u))) -
+          float(loss_w(jnp.asarray(wx - eps * u)))) / (2 * eps)
+    assert np.isclose(an, fd, rtol=1e-4, atol=1e-7 * abs(fd))

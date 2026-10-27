@@ -199,7 +199,10 @@ int compute_cf_soft_vjp(int argc, char *argv[], DATA *dat, int ncat,
       for (size_t k = 0; k < (size_t) 3 * cf->data[idx].n; k++)
         gx[c][k] *= (double) cf->rescale;
     }
-    if (gsigma) *gsigma *= (double) cf->rescale;
+    /* the kernel-width cotangent: rescaled units for a constant
+     * sigma, dimensionless fraction in sigma(s) = f * s mode */
+    if (gsigma)
+      *gsigma *= cf->soft_sigma_log ? 1.0 : (double) cf->rescale;
     if (gpisigma) *gpisigma *= (double) cf->rescale;
   }
 

@@ -93,7 +93,7 @@ def simd_info():
 
 # Valid FCFC configuration options for this component: the command-line
 # long option names (with '-' replaced by '_' when passed as keywords).
-_OPTIONS = frozenset(['bin', 'box', 'cf', 'cf-output', 'conf', 'data-struct', 'label', 'mp-output', 'multipole', 'out-format', 'overwrite', 'pair', 'pair-output', 'soft-hist', 'soft-sigma', 'soft-mu', 'soft-mu-sigma', 'soft-pi', 'soft-pi-sigma', 'verbose', 'weight', 'wp', 'wp-output'])
+_OPTIONS = frozenset(['bin', 'box', 'cf', 'cf-output', 'conf', 'data-struct', 'label', 'mp-output', 'multipole', 'out-format', 'overwrite', 'pair', 'pair-output', 'soft-hist', 'soft-sigma', 'soft-mu', 'soft-mu-sigma', 'soft-pi', 'soft-pi-sigma', 'soft-sigma-log', 'verbose', 'weight', 'wp', 'wp-output'])
 
 # Friendly hints for frequent mistakes.
 _OPTION_HINTS = {
@@ -319,7 +319,7 @@ cdef dict _extract_results(CF *cf):
 def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
                   soft_hist=False, soft_sigma=None, soft_mu=False,
                   soft_mu_sigma=None, soft_pi=False, soft_pi_sigma=None,
-                  **kwargs):
+                  soft_sigma_log=False, **kwargs):
     """Evaluate pair counts and correlation functions with FCFC.
 
     Parameters
@@ -369,6 +369,11 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
         units of ``sedges`` (i.e. before the internal rescaling).  Only
         used with ``soft_hist=True``; the default (None) selects half
         the mean separation bin width.
+    soft_sigma_log : bool, optional
+        Interpret `soft_sigma` as a *fraction* f with a scale-dependent
+        kernel width sigma(s) = f * s (for logarithmic separation bins);
+        the default f (soft_sigma=None) is half the mean logarithmic bin
+        width.  Requires soft_hist=True.
     soft_mu : bool, optional
         Also soft-bin the mu dimension of the (s, mu) scheme with the
         same softmax Gaussian kernel (over the mu bin centres), making
@@ -448,6 +453,11 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
         kwargs['soft_sigma'] = sig
     if soft_hist:
         kwargs['soft_hist'] = True
+    if soft_sigma_log:
+        if not soft_hist:
+            raise ValueError("soft_sigma_log requires soft_hist=True "
+                             "(sigma(s) = soft_sigma * s)")
+        kwargs['soft_sigma_log'] = True
     soft_mu = bool(soft_mu)
     if soft_mu_sigma is not None:
         if isinstance(soft_mu_sigma, bool) or not isinstance(
@@ -654,7 +664,7 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
                   normalized=False, grad_wts=False, grad_sigma=False,
                   grad_mu_sigma=False, grad_pi_sigma=False, soft_mu=False,
                   soft_mu_sigma=None, soft_pi=False, soft_pi_sigma=None,
-                  **kwargs):
+                  soft_sigma_log=False, **kwargs):
     """Reverse-mode derivative (VJP) of the soft histogram pair counts.
 
     Adjoint of the soft histogramming method (see ``py_compute_cf`` with
@@ -730,6 +740,8 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
                          "soft_hist_vjp, not as an FCFC option")
     kwargs['pair'] = [pair]
     kwargs['soft_hist'] = True
+    if soft_sigma_log:
+        kwargs['soft_sigma_log'] = True
     soft_mu = bool(soft_mu)
     if soft_mu_sigma is not None:
         if isinstance(soft_mu_sigma, bool) or not isinstance(
