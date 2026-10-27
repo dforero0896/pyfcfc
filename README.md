@@ -344,9 +344,11 @@ differentiable with respect to the catalogue positions *and* weights (its
 forward calls `py_compute_cf`, its backward `soft_hist_vjp`).  The
 primitive is created once per static configuration and cached, so
 repeated calls - also inside `jax.jit`-compiled outer functions - reuse
-the same callable and hence JAX's tracing/compilation caches; since the C
-library is invoked on host arrays, the primitive itself is eager-only (it
-cannot be traced through `jax.jit` directly).  The helpers
+the same callable and hence JAX's tracing/compilation caches; the C
+library runs on host arrays registered via `jax.pure_callback`, so the
+primitive works eagerly *and* under `jax.jit`, for both the forward pass
+and `jax.grad` (jit correctness and compilation caching are covered by
+`tests/test_soft_vjp_jax.py`).  The helpers
 `pair_normalizations`, `xi_landy_szalay`, `multipoles`, `projected_wp`
 and `legpoly` implement FCFC's conventions in JAX, so a whole xi /
 multipole / w_p pipeline becomes differentiable with plain `jax.grad`.
