@@ -406,9 +406,10 @@ static inline int soft_bin_search(const real *edges, const int n,
 #define SOFT_WEIGHT_CUTOFF      1e-13
 
 /* Kernel half-window (in units of sigma) used by the non-linear-bin
- * fallback: bins farther away carry less than exp(-K^2 / 2) ~ 2e-16 of
- * the peak weight, far below double precision significance. */
-#define SOFT_WINDOW_SIGMA       8.5
+ * fallback: bins farther away carry less than exp(-K^2 / 2) ~ 6e-14 of
+ * the peak weight, at the SOFT_WEIGHT_CUTOFF level of the recurrence
+ * walk, far below double precision significance. */
+#define SOFT_WINDOW_SIGMA       7.8
 
 /******************************************************************************
 Function `soft_weights`:
@@ -507,9 +508,12 @@ static inline double soft_weights(const SOFT_CONF *conf, const real s,
   }
   double sum = 0;
   for (int i = a0; i <= a1; i++) {
-    double a = xmin - scratch[i];
-    if (a < -40.0) a = -40.0;
-    const double e = exp(a);
+    const double a = xmin - scratch[i];
+    /* Terms below exp(-30) ~ 9e-14 of the peak weight are
+     * skipped: the renormalisation absorbs the truncated tail,
+     * exactly as the SOFT_WEIGHT_CUTOFF of the recurrence walk
+     * does, and no denormals can occur above the cutoff. */
+    const double e = (a < -30.0) ? 0.0 : exp(a);
     scratch[i] = e;
     sum += e;
   }
@@ -554,10 +558,12 @@ static inline double soft_weights_gen(const real *cen, const int n,
   }
   double sum = 0;
   for (int i = a0; i <= a1; i++) {
-    /* Clamp the exponent to avoid denormal results. */
-    double a = xmin - scratch[i];
-    if (a < -40.0) a = -40.0;
-    const double e = exp(a);
+    const double a = xmin - scratch[i];
+    /* Terms below exp(-30) ~ 9e-14 of the peak weight are
+     * skipped: the renormalisation absorbs the truncated tail,
+     * exactly as the SOFT_WEIGHT_CUTOFF of the recurrence walk
+     * does, and no denormals can occur above the cutoff. */
+    const double e = (a < -30.0) ? 0.0 : exp(a);
     scratch[i] = e;
     sum += e;
   }
