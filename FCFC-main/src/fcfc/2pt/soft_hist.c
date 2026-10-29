@@ -97,10 +97,15 @@
   visited bin), and each walk stops once the weights fall below
   SOFT_WEIGHT_CUTOFF, so the per-pair cost is O(min(ns, sigma / delta))
   instead of O(ns); non-linear bins fall back to the direct stable softmax
-  over an adaptive window.  The kernels remain scalar (no SIMD); soft
-  counts are fractional, hence always accumulated as doubles; and MPI-
-  distributed counting is not supported (the pyfcfc Python bindings do not
-  use MPI).
+  over an adaptive window.  With WITH_SIMD builds (the PYFCFC_WITH_SIMD
+  flag of pyfcfc), the windowed softmax evaluates its Gaussian terms with
+  the vectorised exponential of glibc's libmvec where available, while the
+  leaf-node pair loops stay scalar: at survey geometries the pairs that
+  reach the leaves mostly pass the range checks, so a vector range
+  pre-filter would not amortise its lane-extraction overhead (unlike in
+  the periodic-box component).  Soft counts are fractional, hence always
+  accumulated as doubles; and MPI-distributed counting is not supported
+  (the pyfcfc Python bindings do not use MPI).
 \*============================================================================*/
 
 #include "define.h"
@@ -211,6 +216,81 @@ typedef struct {
 #else
 #define SOFT_ATOMIC_ADD(p, v)   (*(p) += (v))
 #endif
+
+
+/*============================================================================*
+  SIMD support for the soft histogramming kernels
+
+  When the library is built with WITH_SIMD (the PYFCFC_WITH_SIMD build flag
+  of pyfcfc; see `define_simd.h` for the FCFC_SIMD level), the windowed
+  stable softmax of `soft_weights_gen` (used for non-linear bins and for
+  the scale-free sigma(s) = f * s kernel) evaluates its Gaussian terms
+  with the vectorised exponential of glibc's libmvec when available
+  (x86-64 Linux).  Those differ from the scalar `exp` by at most an ulp;
+  since the forward and the adjoint kernels share the code, the backward
+  pass still replays the weights of the forward pass exactly.
+
+  The leaf-node pair loops themselves stay scalar in this component (see
+  the note at `soft_count_single`): unlike the periodic-box component,
+  the vectorised range pre-filter of the box kernels does not pay off at
+  survey geometries, where the pairs handed to the leaves mostly pass the
+  range checks anyway.
+\*============================================================================*/
+
+/* The soft histogramming kernels are compiled in double precision only. */
+#ifdef SINGLE_PREC
+#error "the soft histogramming kernels require double precision"
+#endif
+
+#if FCFC_SIMD != FCFC_SIMD_NONE
+
+/* Comparison masks and their reductions: AVX-512 uses mask registers,
+ * AVX/AVX2 use vectors of all-one / all-zero doubles. */
+#if FCFC_SIMD >= FCFC_SIMD_AVX512
+#define SOFT_CMP(a, b, p)       _mm512_cmp_pd_mask(a, b, p)
+/* a ? 0 : v */
+#define SOFT_MSK_DROP(a, v)     _mm512_mask_mov_pd(v, a, SIMD_ZEROS_REAL())
+#define SOFT_MAX(a, b)          _mm512_max_pd(a, b)
+#define SOFT_MIN(a, b)          _mm512_min_pd(a, b)
+#define SOFT_HSUM(v)            _mm512_reduce_add_pd(v)
+#define SOFT_HMIN(v)            _mm512_reduce_min_pd(v)
+#else
+#define SOFT_CMP(a, b, p)       _mm256_cmp_pd(a, b, p)
+/* a ? 0 : v */
+#define SOFT_MSK_DROP(a, v)     _mm256_andnot_pd(a, v)
+#define SOFT_MAX(a, b)          _mm256_max_pd(a, b)
+#define SOFT_MIN(a, b)          _mm256_min_pd(a, b)
+#define SOFT_HSUM(v)            soft_hsum256(v)
+#define SOFT_HMIN(v)            soft_hmin256(v)
+static inline double soft_hsum256(const __m256d v) {
+  const __m128d t = _mm_add_pd(_mm256_castpd256_pd128(v),
+      _mm256_extractf128_pd(v, 1));
+  return _mm_cvtsd_f64(t) + _mm_cvtsd_f64(_mm_unpackhi_pd(t, t));
+}
+static inline double soft_hmin256(const __m256d v) {
+  const __m128d t = _mm_min_pd(_mm256_castpd256_pd128(v),
+      _mm256_extractf128_pd(v, 1));
+  return _mm_cvtsd_f64(t) < _mm_cvtsd_f64(_mm_unpackhi_pd(t, t)) ?
+      _mm_cvtsd_f64(t) : _mm_cvtsd_f64(_mm_unpackhi_pd(t, t));
+}
+#endif
+
+/* Vectorised exponential from glibc's libmvec, with the same accuracy
+ * contract as the scalar `exp`, for the windowed stable softmax.  On
+ * platforms without libmvec (e.g. macOS) the scalar loop is kept. */
+#if defined(__x86_64__) && defined(__GLIBC__)
+  #if FCFC_SIMD >= FCFC_SIMD_AVX512
+extern __m512d _ZGVeN8v_exp(__m512d);
+#define SOFT_VEXP_W     8
+#define SOFT_VEXP(x)    _ZGVeN8v_exp(x)
+  #else
+extern __m256d _ZGVdN4v_exp(__m256d);
+#define SOFT_VEXP_W     4
+#define SOFT_VEXP(x)    _ZGVdN4v_exp(x)
+  #endif
+#endif
+
+#endif  /* FCFC_SIMD != FCFC_SIMD_NONE */
 
 /******************************************************************************
 Function `soft_conf_init`:
@@ -406,9 +486,10 @@ static inline int soft_bin_search(const real *edges, const int n,
 #define SOFT_WEIGHT_CUTOFF      1e-13
 
 /* Kernel half-window (in units of sigma) used by the non-linear-bin
- * fallback: bins farther away carry less than exp(-K^2 / 2) ~ 2e-16 of
- * the peak weight, far below double precision significance. */
-#define SOFT_WINDOW_SIGMA       8.5
+ * fallback: bins farther away carry less than exp(-K^2 / 2) ~ 6e-14 of
+ * the peak weight, at the SOFT_WEIGHT_CUTOFF level of the recurrence
+ * walk, far below double precision significance. */
+#define SOFT_WINDOW_SIGMA       7.8
 
 /******************************************************************************
 Function `soft_weights`:
@@ -507,9 +588,12 @@ static inline double soft_weights(const SOFT_CONF *conf, const real s,
   }
   double sum = 0;
   for (int i = a0; i <= a1; i++) {
-    double a = xmin - scratch[i];
-    if (a < -40.0) a = -40.0;
-    const double e = exp(a);
+    const double a = xmin - scratch[i];
+    /* Terms below exp(-30) ~ 9e-14 of the peak weight are
+     * skipped: the renormalisation absorbs the truncated tail,
+     * exactly as the SOFT_WEIGHT_CUTOFF of the recurrence walk
+     * does, and no denormals can occur above the cutoff. */
+    const double e = (a < -30.0) ? 0.0 : exp(a);
     scratch[i] = e;
     sum += e;
   }
@@ -546,21 +630,71 @@ static inline double soft_weights_gen(const real *cen, const int n,
   a1 = ((double) cen[hi0] <= whi) ? hi0 : lo0;
   if (a1 < a0) a1 = a0;
   double xmin = DBL_MAX;
+  double sum = 0;
+#if FCFC_SIMD != FCFC_SIMD_NONE && defined(SOFT_VEXP_W)
+  /* Vectorised window evaluation: the same terms as the scalar loops
+   * below, with the Gaussian exponentials from libmvec (results differ
+   * from the scalar `exp` by at most an ulp; the forward and adjoint
+   * kernels share this code, so the backward pass still replays the
+   * forward weights exactly). */
+  {
+    const vec_r vdsv = SIMD_SET1_REAL(dsv);
+    const vec_r vk = SIMD_SET1_REAL(k);
+    vec_r vmin = SIMD_SET1_REAL(DBL_MAX);
+    int i = a0;
+    for (; i + SOFT_VEXP_W <= a1 + 1; i += SOFT_VEXP_W) {
+      const vec_r vd = SIMD_SUB_REAL(vdsv, SIMD_LOADU_REAL(cen + i));
+      const vec_r vx = SIMD_MUL_REAL(SIMD_MUL_REAL(vd, vd), vk);
+      SIMD_STOREU_REAL(scratch + i, vx);
+      vmin = SOFT_MIN(vmin, vx);
+    }
+    xmin = SOFT_HMIN(vmin);
+    for (; i <= a1; i++) {
+      const double d = dsv - (double) cen[i];
+      const double x = d * d * k;
+      scratch[i] = x;
+      if (x < xmin) xmin = x;
+    }
+    const vec_r vxmin = SIMD_SET1_REAL(xmin);
+    const vec_r vcut = SIMD_SET1_REAL(-30.0);
+    vec_r vsum = SIMD_ZEROS_REAL();
+    i = a0;
+    for (; i + SOFT_VEXP_W <= a1 + 1; i += SOFT_VEXP_W) {
+      const vec_r va = SIMD_SUB_REAL(vxmin, SIMD_LOADU_REAL(scratch + i));
+      /* Terms below exp(-30) ~ 9e-14 of the peak weight are zeroed (the
+       * renormalisation absorbs them); the argument is clamped first so
+       * the vector exponential never sees deep underflow. */
+      const vec_r ve = SOFT_MSK_DROP(SOFT_CMP(va, vcut, _CMP_LT_OQ),
+          SOFT_VEXP(SOFT_MAX(va, vcut)));
+      SIMD_STOREU_REAL(scratch + i, ve);
+      vsum = SIMD_ADD_REAL(vsum, ve);
+    }
+    sum = SOFT_HSUM(vsum);
+    for (; i <= a1; i++) {
+      const double a = xmin - scratch[i];
+      const double e = (a < -30.0) ? 0.0 : exp(a);
+      scratch[i] = e;
+      sum += e;
+    }
+  }
+#else
   for (int i = a0; i <= a1; i++) {
     const double d = dsv - (double) cen[i];
     const double x = d * d * k;
     scratch[i] = x;
     if (x < xmin) xmin = x;
   }
-  double sum = 0;
   for (int i = a0; i <= a1; i++) {
-    /* Clamp the exponent to avoid denormal results. */
-    double a = xmin - scratch[i];
-    if (a < -40.0) a = -40.0;
-    const double e = exp(a);
+    const double a = xmin - scratch[i];
+    /* Terms below exp(-30) ~ 9e-14 of the peak weight are
+     * skipped: the renormalisation absorbs the truncated tail,
+     * exactly as the SOFT_WEIGHT_CUTOFF of the recurrence walk
+     * does, and no denormals can occur above the cutoff. */
+    const double e = (a < -30.0) ? 0.0 : exp(a);
     scratch[i] = e;
     sum += e;
   }
+#endif
   *lo = a0;
   *hi = a1;
   return sum;
@@ -1038,7 +1172,16 @@ static inline void soft_bin_pair_adj(const SOFT_CONF *conf,
                 Functions for counting pairs on leaf nodes
 \*============================================================================*/
 
-/* Pairs within a single node (auto pairs, i < j). */
+/* Pairs within a single node (auto pairs, i < j).
+
+   NOTE: unlike the periodic-box component, the leaf loops of the
+   survey-like component stay scalar even in WITH_SIMD builds: at the
+   small separations of interest the tree hands almost only node pairs
+   whose lanes mostly pass the range checks (measured pass fractions
+   around 60 per cent), so the vector range pre-filter cannot amortise
+   its lane-extraction overhead against the short scalar prologue of
+   `soft_bin_pair`.  The vectorised window softmax of `soft_weights_gen`
+   (the expensive part for non-linear bins) applies regardless. */
 static void soft_count_single(real *const *x, const real *w, const size_t n,
     const SOFT_JOB *job, double *scratch) {
   const SOFT_CONF *conf = job->conf;

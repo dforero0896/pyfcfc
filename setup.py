@@ -5,7 +5,13 @@ Environment variables
 PYFCFC_WITH_SIMD : set to 1 to compile with SIMD (AVX/AVX2/AVX512,
     auto-detected from the build machine's instruction set) support.
     This implies `-march=native`, so the resulting binaries only run on
-    machines with the same (or a compatible) instruction set.
+    machines with the same (or a compatible) instruction set.  The soft
+    histogramming kernels then vectorise the leaf-pair range checks (box
+    component) and use glibc's libmvec vector `exp` in the windowed
+    softmax (Linux; `-lmvec` is linked automatically).  Note that the
+    templated hard-kernel translation unit (`count_func.c`) can need
+    2+ GB of compiler memory at -O3 with AVX-512; see
+    PYFCFC_EXTRA_CFLAGS below if the build runs out of memory.
 PYFCFC_MARCH_NATIVE : set to 1 to add `-march=native` without SIMD.
 PYFCFC_NO_LTO : set to 1 to disable link-time optimisation.
 PYFCFC_EXTRA_CFLAGS : extra space-separated compiler flags appended to
@@ -64,10 +70,21 @@ def get_flags():
     if not NO_LTO:
         compile_args.append("-flto")
         omp_link.append("-flto")
+    if WITH_SIMD and sys.platform.startswith("linux") and _have_glibc():
+        # The soft histogramming kernels call the vectorised exponential
+        # of glibc's libmvec directly (the compiler only selects those
+        # SIMD clones under -ffast-math, which we must not use).
+        omp_link.append("-lmvec")
     extra = os.getenv("PYFCFC_EXTRA_CFLAGS")
     if extra:
         compile_args.extend(extra.split())
     return compile_args, omp_link
+
+
+def _have_glibc():
+    """Whether the target libc is glibc (which ships libmvec since 2.22)."""
+    import platform
+    return platform.libc_ver()[0] == "glibc"
 
 
 def make_extension(name, comp_dir):

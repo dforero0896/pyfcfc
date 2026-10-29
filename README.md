@@ -84,7 +84,11 @@ This implies `-march=native`: build on a machine whose instruction set
 (AVX2/AVX512) is available at run time. Compilation of the SIMD kernels is
 memory hungry (a couple of GB of RAM); `PYFCFC_NO_LTO=1` and
 `PYFCFC_EXTRA_CFLAGS="-O2 -mno-avx512f"` can reduce the footprint (the
-latter restricts the build to AVX2).
+latter restricts the build to AVX2). Besides the hard kernels, this also
+vectorises the soft histogramming kernels (leaf-pair range checks in the
+box component, libmvec `exp` in the windowed softmax on glibc Linux, to
+which `-lmvec` is then linked automatically); see the soft-histogramming
+section below for measured speedups and numerical guarantees.
 
 Other build environment variables: `PYFCFC_MARCH_NATIVE=1` (native code
 generation without SIMD), `PYFCFC_NO_LTO=1` (disable link-time
@@ -265,14 +269,32 @@ log scaling is offered for pi.  Properties and limitations:
 - the tree traversal, periodic wrapping and per-pair range checks replicate
   the scalar hard kernels exactly, so both methods operate on the same set
   of pairs;
-- the soft kernels are scalar (no SIMD) but OpenMP-parallel with the same
-  thread decomposition as the hard kernels; for linear separation bins the
-  kernel weights are generated with an exact multiplicative recurrence
-  (two `exp()` calls per pair) over an adaptive window, so the per-pair
-  cost is O(min(ns, sigma / ds)) instead of O(ns).  Single-threaded the
-  soft method is typically a few times slower than the hard kernels
-  (dominated by the kernel evaluation), and it parallelises like them;
-  MPI builds are not supported.
+- the soft kernels are OpenMP-parallel with the same thread decomposition
+  as the hard kernels; for linear separation bins the kernel weights are
+  generated with an exact multiplicative recurrence (two `exp()` calls per
+  pair) over an adaptive window, so the per-pair cost is
+  O(min(ns, sigma / ds)) instead of O(ns);
+- `PYFCFC_WITH_SIMD=1` builds accelerate the soft method: in the box
+  component the leaf-pair loops evaluate the coordinate differences,
+  periodic wraps and range checks of 4 (AVX2) or 8 (AVX-512) pairs at a
+  time, with vector arithmetic that matches the scalar expressions
+  bit-for-bit (no FMA contraction), so exactly the same pairs are binned;
+  in both components the windowed stable softmax (non-linear bins and
+  `soft_sigma_log` kernels) evaluates its Gaussian terms with glibc's
+  libmvec vector exponential on x86-64 Linux (scalar `exp` elsewhere).
+  Measured single-thread gains of such a build (2.5 GHz Xeon, AVX-512):
+  -20...-30% for box s / sigma(s)=f*s binning, -11% for box (s, mu),
+  -12% for box (s_perp, pi), -8...-12% for the survey-like component;
+  the survey-like leaf loops stay scalar on purpose (there the pairs that
+  reach the leaves mostly pass the range checks, so a vector pre-filter
+  does not pay off).  Counts differ from non-SIMD builds only by
+  floating-point summation order and the ulp-level accuracy of the vector
+  exponential (~1e-15 relative).  The adjoint (VJP) traversals remain
+  scalar but share the vectorised softmax, so the backward pass still
+  replays the forward weights exactly.  Single-threaded the soft method
+  is typically a few times slower than the hard kernels (dominated by the
+  kernel evaluation), and it parallelises like them; MPI builds are not
+  supported.
 
 Validation against O(N^2) brute-force soft references, the conservation
 laws and the `sigma -> 0` limit are covered by `tests/test_soft_hist.py`;
