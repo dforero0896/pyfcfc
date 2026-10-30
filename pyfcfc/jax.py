@@ -63,6 +63,7 @@ import jax.numpy as jnp
 
 from . import boxes as _boxes
 from . import sky as _sky
+from ._softpad import SOFT_PAD_DEFAULT
 
 jax.config.update("jax_enable_x64", True)
 
@@ -130,7 +131,7 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
                      pedges=None, nmu=1, pairs=("DD",), labels=None,
                      soft_sigma=None, soft_mu=False, soft_mu_sigma=None,
                      soft_pi=False, soft_pi_sigma=None,
-                     soft_sigma_log=False, **fcfc_kwargs):
+                     soft_sigma_log=False, soft_pad=None, **fcfc_kwargs):
     """Raw soft-histogram pair counts as a JAX-differentiable function.
 
     Parameters
@@ -148,7 +149,10 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
         taken from ``labels`` (default ``'ABCD...'``).
     soft_* :
         Soft histogramming options, as in ``py_compute_cf``
-        (``soft_hist=True`` is implied).
+        (``soft_hist=True`` is implied).  ``soft_pad`` selects the edge
+        padding of the counting range (default: the same 2 kernel widths
+        as ``py_compute_cf``); it is part of the primitive's static
+        configuration and of the cache key.
     **fcfc_kwargs :
         Further FCFC options (``box``, ``bin``, ``data_struct``, ...).
 
@@ -199,6 +203,18 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
             opts['soft_pi_sigma'] = soft_pi_sigma
     if soft_sigma_log:
         opts['soft_sigma_log'] = True
+    if soft_pad is None:
+        soft_pad = SOFT_PAD_DEFAULT
+    else:
+        if isinstance(soft_pad, bool) or not isinstance(
+                soft_pad, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_pad must be a number, got "
+                            f"{type(soft_pad).__name__}")
+        soft_pad = float(soft_pad)
+        if not np.isfinite(soft_pad) or soft_pad < 0:
+            raise ValueError(f"soft_pad must be a non-negative finite "
+                             f"number, got {soft_pad!r}")
+    opts['soft_pad'] = soft_pad
 
     def _raw(p_list, w_list):
         res = mod.py_compute_cf(p_list, w_list, s_edges, pedges, nmu, **opts)
@@ -272,6 +288,7 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
                                             soft_pi=soft_pi,
                                             soft_pi_sigma=soft_pi_sigma,
                                             soft_sigma_log=soft_sigma_log,
+                                            soft_pad=soft_pad,
                                             grad_wts=True, **vjp_opts)
                     for idx, lab in enumerate(labels):
                         if lab in out['grads']:

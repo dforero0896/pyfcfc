@@ -7,11 +7,14 @@ Gaussian kernel of width ``soft_sigma`` centred on the bins,
 
     W_i = softmax_i(-(s - c_i)^2 / (2 * soft_sigma^2)).
 
-The total pair weight inside [smin, smax) is conserved exactly, so the
-soft histogram is a smoothed version of the hard one: sharp features are
-broadened by ~soft_sigma, bin-to-bin noise from the hard bin edges
-disappears, and the result is differentiable with respect to the pair
-separations (useful e.g. for emulation / inference pipelines).
+The total pair weight inside [smin, smax) is conserved exactly (this
+example passes ``soft_pad=0``; the library default extends the counting
+range by two kernel widths to remove the truncation bias of the
+outermost bins -- see the README), so the soft histogram is a smoothed
+version of the hard one: sharp features are broadened by ~soft_sigma,
+bin-to-bin noise from the hard bin edges disappears, and the result is
+differentiable with respect to the pair separations (useful e.g. for
+emulation / inference pipelines).
 
 This example computes DD (and RR) pair counts for a clustered periodic-box
 mock with the hard method and with three kernel widths, checks the weight
@@ -56,7 +59,11 @@ def run(cats, wts, s_edges, soft_sigma=None, repeat=1, **kwargs):
               cf=['(DD - 2 * DR + RR) / RR'], box=BOX)
     kw.update(kwargs)
     if soft_sigma is not None:
-        kw.update(soft_hist=True, soft_sigma=soft_sigma)
+        # soft_pad=0: this example demonstrates the exact weight
+        # conservation of the unpadded soft histogram (the library
+        # default pads the counting range by 2 kernel widths to remove
+        # the edge leakage; see the README).
+        kw.update(soft_hist=True, soft_sigma=soft_sigma, soft_pad=0)
     t0 = time.perf_counter()
     for _ in range(repeat):
         res = py_compute_cf(cats, wts, s_edges, None, 1, **kw)

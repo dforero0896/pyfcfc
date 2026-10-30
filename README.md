@@ -208,6 +208,7 @@ What remains of the file machinery, and stays supported:
 | `soft_mu_sigma`         | ✔ | ✔ | mu kernel width in mu units (default: half the mu bin width); requires `soft_mu` |
 | `soft_pi`               | ✔ | ✔ | soft histogramming of the pi dimension of the (s_perp, pi) scheme (`bin=2`), making w_p differentiable |
 | `soft_pi_sigma`         | ✔ | ✔ | pi kernel width in the units of `pedges` (default: half the mean pi bin width); requires `soft_pi` |
+| `soft_pad`              | ✔ | ✔ | edge padding of the soft counting range in kernel widths (default: 2; 0 disables): removes the truncated-kernel-tail bias of the outermost bins, see below |
 | `cf`                    | ✔ | ✔ | correlation function estimator expression(s), e.g. `['(DD - 2*DR + RR)/RR']`; `'@@'` denotes the analytic random-random counts (box) |
 | `multipole`             | ✔ | ✔ | multipole orders to integrate (requires `bin=1` and `cf`) |
 | `wp`                    | ✔ | ✔ | compute the projected correlation function (requires `bin=2` and `cf`) |
@@ -246,10 +247,10 @@ Gaussian kernel centred on the bins,
 where `c_i` are the bin centres and `sigma = soft_sigma` (`soft_sigma=None`
 / `SOFT_SIGMA = 0` selects automatically half the mean separation bin
 width).  Since the softmax weights sum to one, the total weight of all
-pairs with `smin <= s < smax` is conserved exactly: the soft histogram is a
-kernel-smoothed version of the hard one, and the two are directly
-comparable (soft counts converge to the hard counts in the `sigma -> 0`
-limit).  With `soft_sigma_log=True` (`SOFT_SIGMA_LOG = T`) the width is
+counted pairs is conserved exactly (over the padded counting range when
+`soft_pad > 0`; see below): the soft histogram is a kernel-smoothed version
+of the hard one, and the two are directly comparable (soft counts converge
+to the hard counts in the `sigma -> 0` limit).  With `soft_sigma_log=True` (`SOFT_SIGMA_LOG = T`) the width is
 instead *scale dependent*: `soft_sigma` is then interpreted as a
 dimensionless fraction f and the kernel width becomes `sigma(s) = f * s`
 (in the units of `sedges`, evaluated at each pair's separation).  This is
@@ -261,7 +262,52 @@ is half the mean logarithmic bin width, i.e. sigma equals half the local
 bin width everywhere.  The mu and pi kernels always take fixed *absolute*
 widths (`soft_mu_sigma` in mu units, `soft_pi_sigma` in the units of
 `pedges`): FCFC's mu bins are uniform on [0, 1) by construction, and no
-log scaling is offered for pi.  Properties and limitations:
+log scaling is offered for pi.
+
+**Edge leakage and the `soft_pad` padding.** The Gaussian kernel has
+infinite support, but the tree traversal only counts pairs inside the
+binning range `[sedges[0], sedges[-1])`: the kernel tails reaching beyond
+the outermost edges are truncated.  For the outermost bins the estimator
+then averages `xi(s)` over a *half* kernel -- the weight that leaks out of
+the last bin towards larger separations (where `xi` is smaller for a steep
+correlation function) is not compensated by weight leaking in from beyond
+`sedges[-1]`, because those pairs are never counted.  The result is a
+positive bias of the last separation bin (a smaller negative one at the
+first, where the `s^2` volume factor suppresses the missing pairs),
+growing with the steepness of `xi` and with the kernel width: for a
+`xi ~ s^-1.8` power law with the default scale-free kernel the last bin
+carries ~ +9% excess (relative to the kernel-smoothed value the interior
+bins measure), ~ +5% for `gamma = 0.8` and ~ +12% for `gamma = 2.6`.
+`soft_pad = z` (the default, 2 kernel widths) removes it: the counting
+range is extended by `z` kernel widths beyond the outermost edges,
+realised with *buffer bins* continuing the separation grid (geometrically
+for log-spaced bins, arithmetically otherwise).  The softmax then
+normalises over the real *and* buffer centres, pairs beyond the original
+edges contribute their decaying kernel tails to the outermost real bins,
+and the buffer-bin counts are discarded -- the returned results refer to
+the original bins, with their original edges.  `soft_pad=0` disables the
+padding and restores the unpadded estimator exactly.  Details:
+
+- the padding is quantised to whole buffer bins per side,
+  `ceil(z * sigma_edge / spacing)`: with the default kernel
+  (`f = 0.5 * dln s`) any `0 < z <= 2` gives one buffer bin per side
+  (`z_eff = 2`);
+- measured wall-clock overhead of the default on the soft counts (pairs
+  scale with the shell volume, `~ exp(3 z f) - 1` for log-spaced bins):
+  +32% at 0.1 dex bins, +69% at 0.2 dex, +20% for linear bins with the
+  default kernel, +29% for a survey-like catalogue; `soft_pad=0` restores
+  the previous speed exactly;
+- in a periodic box the extended maximum edge is clamped below `L/2`
+  (FCFC's minimum-image limit), so setups binning close to half the box
+  get reduced (possibly no) upper padding;
+- the lower edge is never padded below zero;
+- `soft_pad` cannot be combined with a configuration file (`conf=`),
+  whose box size and kernel options the Python wrapper cannot see;
+- with padding, the weight conservation and the `sigma -> 0` limit hold
+  on the extended grid (the real bins alone keep less than the total,
+  the rest sits in the discarded buffer bins).
+
+Properties and limitations:
 
 - the mu (`bin=1`) and pi (`bin=2`) dimensions remain hard-binned unless `soft_mu=True` / `soft_pi=True` are set: soft binning them makes the 2D counts smooth in *both* arguments, hence the multipoles xi_ell(s) and the projected correlation function w_p (linear operators on xi(s, mu) / xi(s_perp, pi)) become differentiable as well;
 - pair counts become fractional and are always accumulated in double
@@ -297,7 +343,9 @@ log scaling is offered for pi.  Properties and limitations:
   supported.
 
 Validation against O(N^2) brute-force soft references, the conservation
-laws and the `sigma -> 0` limit are covered by `tests/test_soft_hist.py`;
+laws and the `sigma -> 0` limit are covered by `tests/test_soft_hist.py`
+(unpadded) and `tests/test_soft_pad.py` (padding plans, padded counts vs
+brute force on the extended grid, adjoints, clamping, validation);
 `examples/example_soft_hist.py` plots the soft histograms against the
 hard ones (counts, ratios and xi(s)).
 

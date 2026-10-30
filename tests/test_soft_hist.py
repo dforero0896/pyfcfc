@@ -72,7 +72,7 @@ def test_soft_box_iso(box_catalogs, data_struct):
     s_edges = np.arange(0, 81, 8, dtype=np.float64)
 
     res = py_compute_cf([data, rand], [w1, w2], s_edges, None, 1,
-                        soft_hist=True, soft_sigma=SIGMA,
+                        soft_hist=True, soft_pad=0, soft_sigma=SIGMA,
                         label=['D', 'R'], bin=0, pair=['DD', 'DR', 'RR'],
                         box=box, data_struct=data_struct)
     ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'],
@@ -97,7 +97,7 @@ def test_soft_box_smu(box_catalogs, weighted):
     mu_edges = np.linspace(0, 1, nmu + 1)
 
     res = py_compute_cf([data, rand], [w1, w2], s_edges, None, nmu,
-                        soft_hist=True, soft_sigma=SIGMA,
+                        soft_hist=True, soft_pad=0, soft_sigma=SIGMA,
                         label=['D', 'R'], bin=1, pair=['DD', 'DR', 'RR'],
                         box=box)
     ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'],
@@ -129,7 +129,7 @@ def test_soft_box_spi(box_catalogs):
     pi_edges = np.arange(0, 81, 20, dtype=np.float64)
 
     res = py_compute_cf([data, rand], [w1, w2], s_edges, pi_edges, 1,
-                        soft_hist=True, soft_sigma=SIGMA,
+                        soft_hist=True, soft_pad=0, soft_sigma=SIGMA,
                         label=['D', 'R'], bin=2, pair=['DD', 'DR', 'RR'],
                         box=box)
     ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'],
@@ -150,7 +150,7 @@ def test_soft_box_nonzero_smin(box_catalogs):
     s_edges = np.arange(20, 101, 10, dtype=np.float64)
 
     res = py_compute_cf([data], [w], s_edges, None, 1,
-                        soft_hist=True, soft_sigma=SIGMA,
+                        soft_hist=True, soft_pad=0, soft_sigma=SIGMA,
                         label=['D'], bin=0, pair=['DD'], box=box)
     ref = brute_force_soft_box([data], [w], ['D'], ['DD'], s_edges, box,
                                SIGMA)
@@ -169,7 +169,7 @@ def test_soft_sky_iso(sky_catalogs):
     s_edges = np.arange(0, 201, 25, dtype=np.float64)
 
     res = sky.py_compute_cf([xyz, xyz_r], [w, w_r], s_edges, None, 1,
-                            soft_hist=True, soft_sigma=10.0,
+                            soft_hist=True, soft_pad=0, soft_sigma=10.0,
                             label=['D', 'R'], bin=0, pair=['DD', 'DR'])
     ref = brute_force_soft_sky([xyz, xyz_r], [w, w_r], ['D', 'R'],
                                ['DD', 'DR'], s_edges, 10.0)
@@ -187,7 +187,7 @@ def test_soft_sky_smu(sky_catalogs):
     mu_edges = np.linspace(0, 1, nmu + 1)
 
     res = sky.py_compute_cf([xyz], [w], s_edges, None, nmu,
-                            soft_hist=True, soft_sigma=10.0,
+                            soft_hist=True, soft_pad=0, soft_sigma=10.0,
                             label=['D'], bin=1, pair=['DD'])
     ref = brute_force_soft_sky([xyz], [w], ['D'], ['DD'], s_edges, 10.0,
                                mu_edges=mu_edges)
@@ -205,7 +205,7 @@ def test_soft_sky_spi(sky_catalogs):
     pi_edges = np.arange(0, 151, 30, dtype=np.float64)
 
     res = sky.py_compute_cf([xyz, xyz_r], [w, w_r], s_edges, pi_edges, 1,
-                            soft_hist=True, soft_sigma=8.0,
+                            soft_hist=True, soft_pad=0, soft_sigma=8.0,
                             label=['D', 'R'], bin=2, pair=['DR'])
     ref = brute_force_soft_sky([xyz, xyz_r], [w, w_r], ['D', 'R'], ['DR'],
                                s_edges, 8.0, pi_edges=pi_edges)
@@ -223,7 +223,7 @@ def test_soft_sky_smin_and_balltree(sky_catalogs):
     s_edges = np.arange(50, 201, 25, dtype=np.float64)
 
     res = sky.py_compute_cf([xyz], [w], s_edges, None, 1,
-                            soft_hist=True, soft_sigma=6.0, data_struct=1,
+                            soft_hist=True, soft_pad=0, soft_sigma=6.0, data_struct=1,
                             label=['D'], bin=0, pair=['DD'])
     ref = brute_force_soft_sky([xyz], [w], ['D'], ['DD'], s_edges, 6.0)
     assert_counts_close(_raw(res, 'DD'), ref['counts']['DD'],
@@ -245,7 +245,7 @@ def test_soft_conserves_total_weight(box_catalogs):
     hard = py_compute_cf([data, rand], [w1, w2], s_edges, None, 1,
                          bin=0, **common)
     soft = py_compute_cf([data, rand], [w1, w2], s_edges, None, 1,
-                         bin=0, soft_hist=True, soft_sigma=SIGMA, **common)
+                         bin=0, soft_hist=True, soft_pad=0, soft_sigma=SIGMA, **common)
     for pair in ('DD', 'DR', 'RR'):
         hs = _raw(hard, pair).sum()
         ss = _raw(soft, pair).sum()
@@ -264,7 +264,7 @@ def test_soft_sigma_to_zero_matches_hard(box_catalogs):
 
     hard = _raw(py_compute_cf([data], [w], s_edges, None, 1, **common), 'DD')
     soft = _raw(py_compute_cf([data], [w], s_edges, None, 1,
-                              soft_hist=True, soft_sigma=1e-3 * ds,
+                              soft_hist=True, soft_pad=0, soft_sigma=1e-3 * ds,
                               **common), 'DD')
     # a few pairs sitting within ~1e-3*ds of a bin edge may split between
     # the two neighbouring bins
@@ -281,9 +281,9 @@ def test_soft_default_sigma(box_catalogs):
     common = dict(label=['D'], bin=0, pair=['DD'], box=box)
 
     auto = _raw(py_compute_cf([data], [w], s_edges, None, 1,
-                              soft_hist=True, **common), 'DD')
+                              soft_hist=True, soft_pad=0, **common), 'DD')
     explicit = _raw(py_compute_cf([data], [w], s_edges, None, 1,
-                                  soft_hist=True, soft_sigma=3.0, **common),
+                                  soft_hist=True, soft_pad=0, soft_sigma=3.0, **common),
                     'DD')
     assert np.allclose(auto, explicit, rtol=1e-12, atol=1e-9)
 
@@ -311,7 +311,7 @@ def test_soft_smoothing_effect(box_catalogs):
 
     hard = _raw(py_compute_cf([x], [w], s_edges, None, 1, **common), 'DD')
     soft = _raw(py_compute_cf([x], [w], s_edges, None, 1,
-                              soft_hist=True, soft_sigma=3.0, **common), 'DD')
+                              soft_hist=True, soft_pad=0, soft_sigma=3.0, **common), 'DD')
     cen = 0.5 * (s_edges[:-1] + s_edges[1:])
 
     # the hard histogram is a delta in the first bin, [20, 30)
@@ -348,13 +348,13 @@ def test_soft_api_validation(box_catalogs):
         run(soft_sigma=2.0)
     # invalid kernel widths are rejected
     with pytest.raises(ValueError, match="positive finite"):
-        run(soft_hist=True, soft_sigma=-1.0)
+        run(soft_hist=True, soft_pad=0, soft_sigma=-1.0)
     with pytest.raises(ValueError, match="positive finite"):
-        run(soft_hist=True, soft_sigma=np.inf)
+        run(soft_hist=True, soft_pad=0, soft_sigma=np.inf)
     with pytest.raises(TypeError, match="must be a number"):
-        run(soft_hist=True, soft_sigma="2.0")
+        run(soft_hist=True, soft_pad=0, soft_sigma="2.0")
     with pytest.raises(TypeError, match="must be a number"):
-        run(soft_hist=True, soft_sigma=True)
+        run(soft_hist=True, soft_pad=0, soft_sigma=True)
     # the C side rejects invalid SOFT_SIGMA values passed via config keys;
     # SOFT_SIGMA = 0 through the config means "automatic" and must work
     with pytest.raises((ValueError, RuntimeError)):
@@ -368,7 +368,7 @@ def test_soft_api_validation(box_catalogs):
         run(sigma=1.0)
 
     # results are finite fractional counts with the standard structure
-    res = run(soft_hist=True, soft_sigma=1.5)
+    res = run(soft_hist=True, soft_pad=0, soft_sigma=1.5)
     got = res['pairs']['DD']
     assert got.dtype == np.float64
     assert np.all(np.isfinite(got))
@@ -389,7 +389,7 @@ def test_soft_estimator_and_multipole_pipeline(box_catalogs):
                   cf=['(DD - 2 * DR + RR) / RR'], multipole=[0, 2], box=box)
 
     res = py_compute_cf([data, rand], [w1, w2], s_edges, None, nmu,
-                        soft_hist=True, soft_sigma=SIGMA, **common)
+                        soft_hist=True, soft_pad=0, soft_sigma=SIGMA, **common)
     assert res['cf'].shape == (1, len(s_edges) - 1, nmu)
     assert res['multipoles'].shape == (1, 2, len(s_edges) - 1)
     assert np.all(np.isfinite(res['multipoles']))
@@ -411,7 +411,7 @@ def test_soft_mu_box_vs_bruteforce(box_catalogs):
     ss, sm = 3.0, 0.15
 
     res = py_compute_cf([data, rand], [w1, w2], s_edges, None, nmu,
-                        soft_hist=True, soft_sigma=ss, soft_mu=True,
+                        soft_hist=True, soft_pad=0, soft_sigma=ss, soft_mu=True,
                         soft_mu_sigma=sm, label=['D', 'R'], bin=1,
                         pair=['DD', 'DR'], box=box)
     ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'],
@@ -437,7 +437,7 @@ def test_soft_mu_sigma_to_zero_matches_hard(box_catalogs):
     nmu = 5
     common = dict(label=['D'], bin=1, pair=['DD'], box=box)
     hard = _raw(py_compute_cf([data], [w], s_edges, None, nmu, **common), 'DD')
-    soft = _raw(py_compute_cf([data], [w], s_edges, None, nmu, soft_hist=True,
+    soft = _raw(py_compute_cf([data], [w], s_edges, None, nmu, soft_hist=True, soft_pad=0,
                               soft_sigma=1e-3 * 10, soft_mu=True,
                               soft_mu_sigma=1e-4, **common), 'DD')
     assert_counts_close(soft, hard, rtol=1e-9, atol=1.0,
@@ -454,7 +454,7 @@ def test_soft_mu_sky_vs_bruteforce(sky_catalogs):
     mu_edges = np.linspace(0, 1, nmu + 1)
     ss, sm = 10.0, 0.15
 
-    res = sky.py_compute_cf([xyz], [w], s_edges, None, nmu, soft_hist=True,
+    res = sky.py_compute_cf([xyz], [w], s_edges, None, nmu, soft_hist=True, soft_pad=0,
                             soft_sigma=ss, soft_mu=True, soft_mu_sigma=sm,
                             label=['D'], bin=1, pair=['DD'])
     ref = brute_force_soft_sky([xyz], [w], ['D'], ['DD'], s_edges, ss,
@@ -477,7 +477,7 @@ def test_soft_pi_box_vs_bruteforce(box_catalogs):
     ss, sp = 3.0, 6.0
 
     res = py_compute_cf([data, rand], [w1, w2], s_edges, pi_edges, 1,
-                        soft_hist=True, soft_sigma=ss, soft_pi=True,
+                        soft_hist=True, soft_pad=0, soft_sigma=ss, soft_pi=True,
                         soft_pi_sigma=sp, label=['D', 'R'], bin=2,
                         pair=['DD', 'DR'], box=box)
     ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'],
@@ -503,7 +503,7 @@ def test_soft_pi_box_nonlinear_edges(box_catalogs):
     pi_edges = np.array([0., 8., 20., 45., 80.])
     ss, sp = 3.0, 7.0
     res = py_compute_cf([data, rand], [w1, w2], s_edges, pi_edges, 1,
-                        soft_hist=True, soft_sigma=ss, soft_pi=True,
+                        soft_hist=True, soft_pad=0, soft_sigma=ss, soft_pi=True,
                         soft_pi_sigma=sp, label=['D', 'R'], bin=2,
                         pair=['DR'], box=box)
     ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'], ['DR'],
@@ -522,7 +522,7 @@ def test_soft_pi_sky_vs_bruteforce(sky_catalogs):
     s_edges = np.linspace(0, dmax, 7)
     pi_edges = np.linspace(0, dmax, 5)
     ss, sp = 12.0, 12.0
-    res = sky.py_compute_cf([xyz], [w], s_edges, pi_edges, 1, soft_hist=True,
+    res = sky.py_compute_cf([xyz], [w], s_edges, pi_edges, 1, soft_hist=True, soft_pad=0,
                             soft_sigma=ss, soft_pi=True, soft_pi_sigma=sp,
                             label=['D'], bin=2, pair=['DD'])
     ref = brute_force_soft_sky([xyz], [w], ['D'], ['DD'], s_edges, ss,
@@ -541,7 +541,7 @@ def test_soft_pi_sigma_to_zero_matches_hard(box_catalogs):
     hard = _raw(py_compute_cf([data], [w], s_edges, pi_edges, 1, **common),
                 'DD')
     soft = _raw(py_compute_cf([data], [w], s_edges, pi_edges, 1,
-                              soft_hist=True, soft_sigma=1e-3,
+                              soft_hist=True, soft_pad=0, soft_sigma=1e-3,
                               soft_pi=True, soft_pi_sigma=1e-4, **common),
                 'DD')
     assert_counts_close(soft, hard, rtol=1e-9, atol=1.0,
@@ -561,7 +561,7 @@ def test_soft_sigma_log_box(box_catalogs):
     s_edges = np.geomspace(1.0, 80.0, 25)
     f = 0.06
     res = py_compute_cf([data, rand], [w1, w2], s_edges, None, 1,
-                        soft_hist=True, soft_sigma=f, soft_sigma_log=True,
+                        soft_hist=True, soft_pad=0, soft_sigma=f, soft_sigma_log=True,
                         label=['D', 'R'], bin=0, pair=['DD', 'DR'], box=box)
     ref = brute_force_soft_box([data, rand], [w1, w2], ['D', 'R'],
                                ['DD', 'DR'], s_edges, box, f, sigma_log=True)
@@ -582,7 +582,7 @@ def test_soft_sigma_log_sky(sky_catalogs):
     w = cat['w'][:700]
     s_edges = np.geomspace(5.0, 300.0, 20)
     f = 0.08
-    res = sky.py_compute_cf([xyz], [w], s_edges, None, 1, soft_hist=True,
+    res = sky.py_compute_cf([xyz], [w], s_edges, None, 1, soft_hist=True, soft_pad=0,
                             soft_sigma=f, soft_sigma_log=True,
                             label=['D'], bin=0, pair=['DD'])
     ref = brute_force_soft_sky([xyz], [w], ['D'], ['DD'], s_edges, f,

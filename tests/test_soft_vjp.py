@@ -56,7 +56,7 @@ def _check(mod, cats, wts, bin_type, pair, sigma, pedges, nmu, grads_of,
     ns = len(S_EDGES) - 1
     g = _cotangent(rng, bin_type, ns, nmu, len(pedges) - 1 if pedges is not None else 1)
     labels = [chr(65 + i) for i in range(len(cats))]
-    fwd = dict(label=labels, bin=bin_type, pair=[pair], soft_hist=True,
+    fwd = dict(label=labels, bin=bin_type, pair=[pair], soft_hist=True, soft_pad=0,
                soft_sigma=sigma, **(extra or {}))
 
     def loss(cs):
@@ -70,8 +70,8 @@ def _check(mod, cats, wts, bin_type, pair, sigma, pedges, nmu, grads_of,
                                          for k, c in enumerate(cats)]),
                          cats[which], v)
     out = mod.soft_hist_vjp(cats, wts, S_EDGES, pedges, nmu, pair=pair,
-                            cotangent=g, soft_sigma=sigma, bin=bin_type,
-                            **(extra or {}))
+                            cotangent=g, soft_sigma=sigma, soft_pad=0,
+                            bin=bin_type, **(extra or {}))
     an = float(np.sum(out['grads'][labels[which]] * v))
     assert np.isclose(an, fd, rtol=rtol, atol=1e-7 * max(1.0, abs(fd))), \
         f"bin={bin_type} pair={pair}: VJP {an} vs FD {fd}"
@@ -129,8 +129,8 @@ def test_vjp_box_balltree_forward():
              extra=dict(box=400.))
     g = rng.normal(size=(len(S_EDGES) - 1,))
     out = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, None, 1, pair='AB',
-                              cotangent=g, soft_sigma=SIGMA, bin=0, box=400.,
-                              data_struct=1)
+                              cotangent=g, soft_sigma=SIGMA, soft_pad=0,
+                              bin=0, box=400., data_struct=1)
     assert np.all(np.isfinite(out['grads']['A']))
 
 
@@ -141,7 +141,7 @@ def test_vjp_weights_and_sigma():
     w2 = rng.uniform(0.5, 1.5, len(r))
     g = rng.normal(size=(len(S_EDGES) - 1,))
     import pyfcfc.boxes as boxes
-    fwd = dict(label=['A', 'B'], bin=0, pair=['AB'], soft_hist=True,
+    fwd = dict(label=['A', 'B'], bin=0, pair=['AB'], soft_hist=True, soft_pad=0,
                soft_sigma=SIGMA, box=400.)
 
     def loss(ws, sg):
@@ -156,8 +156,8 @@ def test_vjp_weights_and_sigma():
     fd_s = (loss([w1, w2], SIGMA + eps) - loss([w1, w2], SIGMA - eps)) / \
         (2 * eps)
     out = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, None, 1, pair='AB',
-                              cotangent=g, soft_sigma=SIGMA, bin=0,
-                              grad_wts=True, grad_sigma=True, box=400.)
+                              cotangent=g, soft_sigma=SIGMA, soft_pad=0,
+                              bin=0, grad_wts=True, grad_sigma=True, box=400.)
     an_w = float(np.sum(out['grad_wts']['B'] * vw))
     an_s = out['grad_sigma']
     assert np.isclose(an_w, fd_w, rtol=1e-4, atol=1e-7 * abs(fd_w))
@@ -173,7 +173,7 @@ def test_vjp_invariants():
     w2 = rng.uniform(0.5, 1.5, len(r))
     import pyfcfc.boxes as boxes
     ns = len(S_EDGES) - 1
-    common = dict(pair='AB', soft_sigma=SIGMA, bin=0, box=400.)
+    common = dict(pair='AB', soft_sigma=SIGMA, soft_pad=0, bin=0, box=400.)
 
     out = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, None, 1,
                               cotangent=np.ones(ns), **common)
@@ -203,14 +203,15 @@ def test_vjp_normalized_flag():
     g = rng.normal(size=(ns,))
     res = boxes.py_compute_cf([d, r], [w1, w2], S_EDGES, None, 1,
                               label=['A', 'B'], bin=0, pair=['AB'],
-                              soft_hist=True, soft_sigma=SIGMA, box=400.)
+                              soft_hist=True, soft_pad=0, soft_sigma=SIGMA, box=400.)
     norm = res['normalization']['AB']
     o_raw = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, None, 1,
-                                pair='AB', cotangent=g / norm,
+                                pair='AB', cotangent=g / norm, soft_pad=0,
                                 soft_sigma=SIGMA, bin=0, box=400.)
     o_nrm = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, None, 1,
                                 pair='AB', cotangent=g, normalized=True,
-                                soft_sigma=SIGMA, bin=0, box=400.)
+                                soft_pad=0, soft_sigma=SIGMA, bin=0,
+                                box=400.)
     for lab in ('A', 'B'):
         assert np.allclose(o_raw['grads'][lab], o_nrm['grads'][lab],
                            rtol=1e-12, atol=1e-12)
@@ -223,22 +224,22 @@ def test_vjp_api_errors():
     import pyfcfc.boxes as boxes
     ns = len(S_EDGES) - 1
     with pytest.raises(ValueError, match="cotangent"):
-        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA',
+        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA', soft_pad=0,
                             cotangent=None, bin=0, box=400.)
     with pytest.raises(ValueError, match="shape"):
-        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA',
+        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA', soft_pad=0,
                             cotangent=np.ones((ns, 3)), soft_sigma=SIGMA,
                             bin=0, box=400.)
     with pytest.raises(ValueError, match="invalid pair"):
-        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='ZZ',
+        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='ZZ', soft_pad=0,
                             cotangent=np.ones(ns), soft_sigma=SIGMA,
                             bin=0, box=400.)
     with pytest.raises(ValueError, match="soft_sigma"):
-        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA',
+        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA', soft_pad=0,
                             cotangent=np.ones(ns), soft_sigma=-1.0,
                             bin=0, box=400.)
     with pytest.raises(ValueError, match="normalized"):
-        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA',
+        boxes.soft_hist_vjp([d], [w], S_EDGES, None, 1, pair='AA', soft_pad=0,
                             cotangent=np.ones(ns), normalized=True,
                             grad_wts=True, soft_sigma=SIGMA, bin=0,
                             box=400.)
@@ -283,7 +284,7 @@ def _disp_loss_data(rng, theta_star=None, weighted=True):
     def raw_dr(theta):
         res = py_compute_cf([g + np.asarray(theta), r], [wg, wr],
                             DISP_EDGES, None, 1, label=['G', 'R'], bin=0,
-                            pair=['GR'], soft_hist=True,
+                            pair=['GR'], soft_hist=True, soft_pad=0,
                             soft_sigma=DISP_SIGMA, box=400.)
         return res['pairs']['GR'] * res['normalization']['GR']
 
@@ -295,7 +296,7 @@ def _disp_grad_theta(g, r, wg, wr, theta, cotangent):
     """dL/dtheta from the C adjoint: sum of the coordinate cotangents."""
     from pyfcfc.boxes import soft_hist_vjp
     out = soft_hist_vjp([g + np.asarray(theta), r], [wg, wr], DISP_EDGES,
-                        None, 1, pair='GR', cotangent=cotangent,
+                        None, 1, pair='GR', soft_pad=0, cotangent=cotangent,
                         soft_sigma=DISP_SIGMA, bin=0, box=400.,
                         label=['G', 'R'])
     return out['grads']['G'].sum(axis=0)
@@ -360,7 +361,7 @@ def test_vjp_translation_null_direction():
     gg = rng.normal(size=(ns,))
     import pyfcfc.boxes as boxes
     theta = np.array([4.0, -3.0, 2.0])
-    out = boxes.soft_hist_vjp([g + theta], [w], S_EDGES, None, 1, pair='AA',
+    out = boxes.soft_hist_vjp([g + theta], [w], S_EDGES, None, 1, pair='AA', soft_pad=0,
                               cotangent=gg, soft_sigma=SIGMA, bin=0,
                               box=400.)
     gx = out['grads']['A']
@@ -393,7 +394,7 @@ def test_vjp_soft_mu_coordinates():
     w2 = rng.uniform(0.5, 1.5, len(r))
     nmu = 4
     g = rng.normal(size=(len(S_EDGES) - 1, nmu))
-    kw = dict(label=['A', 'B'], bin=1, pair=['AB'], soft_hist=True,
+    kw = dict(label=['A', 'B'], bin=1, pair=['AB'], soft_hist=True, soft_pad=0,
               soft_sigma=SIGMA, soft_mu=True, soft_mu_sigma=0.15, box=400.)
 
     def loss(x):
@@ -405,7 +406,7 @@ def test_vjp_soft_mu_coordinates():
     eps = 1e-6
     fd = (loss(d + eps * v) - loss(d - eps * v)) / (2 * eps)
     out = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, None, nmu,
-                              pair='AB', cotangent=g, soft_sigma=SIGMA,
+                              pair='AB', soft_pad=0, cotangent=g, soft_sigma=SIGMA,
                               soft_mu=True, soft_mu_sigma=0.15, bin=1,
                               box=400.)
     an = float(np.sum(out['grads']['A'] * v))
@@ -417,7 +418,7 @@ def test_vjp_soft_mu_coordinates():
     dmax = np.max(np.linalg.norm(xyz[:, None] - xyz[None, :], axis=-1))
     se = np.linspace(0, dmax * 1.05, 8)
     g2 = rng.normal(size=(len(se) - 1, nmu))
-    kws = dict(label=['A'], bin=1, pair=['AA'], soft_hist=True,
+    kws = dict(label=['A'], bin=1, pair=['AA'], soft_hist=True, soft_pad=0,
                soft_sigma=15.0, soft_mu=True, soft_mu_sigma=0.15)
 
     def loss_s(x):
@@ -427,7 +428,7 @@ def test_vjp_soft_mu_coordinates():
 
     v2 = rng.normal(size=xyz.shape)
     fd2 = (loss_s(xyz + eps * v2) - loss_s(xyz - eps * v2)) / (2 * eps)
-    out2 = sky.soft_hist_vjp([xyz], [wz], se, None, nmu, pair='AA',
+    out2 = sky.soft_hist_vjp([xyz], [wz], se, None, nmu, pair='AA', soft_pad=0,
                              cotangent=g2, soft_sigma=15.0, soft_mu=True,
                              soft_mu_sigma=0.15, bin=1)
     an2 = float(np.sum(out2['grads']['A'] * v2))
@@ -443,7 +444,7 @@ def test_vjp_mu_sigma():
     nmu = 4
     sm = 0.15
     g = rng.normal(size=(len(S_EDGES) - 1, nmu))
-    kw = dict(label=['A'], bin=1, pair=['AA'], soft_hist=True,
+    kw = dict(label=['A'], bin=1, pair=['AA'], soft_hist=True, soft_pad=0,
               soft_sigma=SIGMA, soft_mu=True, soft_mu_sigma=sm, box=400.)
 
     def loss(smu):
@@ -454,7 +455,7 @@ def test_vjp_mu_sigma():
 
     eps = 1e-7
     fd = (loss(sm + eps) - loss(sm - eps)) / (2 * eps)
-    out = boxes.soft_hist_vjp([d], [w], S_EDGES, None, nmu, pair='AA',
+    out = boxes.soft_hist_vjp([d], [w], S_EDGES, None, nmu, pair='AA', soft_pad=0,
                               cotangent=g, soft_sigma=SIGMA, soft_mu=True,
                               soft_mu_sigma=sm, bin=1, box=400.,
                               grad_mu_sigma=True)
@@ -476,7 +477,7 @@ def test_vjp_multipole_chain():
     ns = len(S_EDGES) - 1
     kw = dict(label=['A', 'B'], bin=1, pair=['AA', 'AB', 'BB'],
               cf=['(AA - 2 * AB + BB) / BB'], multipole=poles,
-              soft_hist=True, soft_sigma=SIGMA, soft_mu=True,
+              soft_hist=True, soft_pad=0, soft_sigma=SIGMA, soft_mu=True,
               soft_mu_sigma=0.12, box=400.)
     G = rng.normal(size=(2, ns))            # cotangents on xi_0, xi_2
 
@@ -515,9 +516,9 @@ def test_vjp_multipole_chain():
     dirs = {'A': v1, 'B': v2}
     for pair, c in cot.items():
         out = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, None, nmu,
-                                  pair=pair, cotangent=c, soft_sigma=SIGMA,
-                                  soft_mu=True, soft_mu_sigma=0.12, bin=1,
-                                  box=400.)
+                                  pair=pair, cotangent=c, soft_pad=0,
+                                  soft_sigma=SIGMA, soft_mu=True,
+                                  soft_mu_sigma=0.12, bin=1, box=400.)
         for lab, gl in out['grads'].items():
             an += float(np.sum(gl * dirs[lab]))
     assert np.isclose(an, fd, rtol=1e-4, atol=1e-6 * abs(fd)), \
@@ -541,7 +542,7 @@ def test_vjp_soft_pi_coordinates():
     w2 = rng.uniform(0.5, 1.5, len(r))
     pe = np.arange(0, 181, 30.)
     g = rng.normal(size=(len(S_EDGES) - 1, len(pe) - 1))
-    kw = dict(label=['A', 'B'], bin=2, pair=['AB'], soft_hist=True,
+    kw = dict(label=['A', 'B'], bin=2, pair=['AB'], soft_hist=True, soft_pad=0,
               soft_sigma=SIGMA, soft_pi=True, soft_pi_sigma=8.0, box=400.)
 
     def loss(x):
@@ -552,7 +553,7 @@ def test_vjp_soft_pi_coordinates():
     v = rng.normal(size=d.shape)
     eps = 1e-6
     fd = (loss(d + eps * v) - loss(d - eps * v)) / (2 * eps)
-    out = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, pe, 1, pair='AB',
+    out = boxes.soft_hist_vjp([d, r], [w1, w2], S_EDGES, pe, 1, pair='AB', soft_pad=0,
                               cotangent=g, soft_sigma=SIGMA, soft_pi=True,
                               soft_pi_sigma=8.0, bin=2, box=400.)
     an = float(np.sum(out['grads']['A'] * v))
@@ -564,7 +565,7 @@ def test_vjp_soft_pi_coordinates():
     se = np.linspace(0, dmax * 1.05, 7)
     pe2 = np.linspace(0, dmax * 1.05, 5)
     g2 = rng.normal(size=(len(se) - 1, len(pe2) - 1))
-    kws = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True,
+    kws = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True, soft_pad=0,
                soft_sigma=15.0, soft_pi=True, soft_pi_sigma=15.0)
 
     def loss_s(x):
@@ -574,7 +575,7 @@ def test_vjp_soft_pi_coordinates():
 
     v2 = rng.normal(size=xyz.shape)
     fd2 = (loss_s(xyz + eps * v2) - loss_s(xyz - eps * v2)) / (2 * eps)
-    out2 = sky.soft_hist_vjp([xyz], [wz], se, pe2, 1, pair='AA',
+    out2 = sky.soft_hist_vjp([xyz], [wz], se, pe2, 1, pair='AA', soft_pad=0,
                              cotangent=g2, soft_sigma=15.0, soft_pi=True,
                              soft_pi_sigma=15.0, bin=2)
     an2 = float(np.sum(out2['grads']['A'] * v2))
@@ -589,7 +590,7 @@ def test_vjp_pi_sigma():
     pe = np.arange(0, 181, 30.)
     sp = 8.0
     g = rng.normal(size=(len(S_EDGES) - 1, len(pe) - 1))
-    kw = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True,
+    kw = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True, soft_pad=0,
               soft_sigma=SIGMA, soft_pi=True, soft_pi_sigma=sp, box=400.)
 
     def loss(x):
@@ -600,7 +601,7 @@ def test_vjp_pi_sigma():
 
     eps = 1e-7
     fd = (loss(sp + eps) - loss(sp - eps)) / (2 * eps)
-    out = boxes.soft_hist_vjp([d], [w], S_EDGES, pe, 1, pair='AA',
+    out = boxes.soft_hist_vjp([d], [w], S_EDGES, pe, 1, pair='AA', soft_pad=0,
                               cotangent=g, soft_sigma=SIGMA, soft_pi=True,
                               soft_pi_sigma=sp, bin=2, box=400.,
                               grad_pi_sigma=True)
@@ -624,7 +625,7 @@ def test_vjp_wp_chain():
     ns = len(se) - 1
     npi = len(pe) - 1
     kw = dict(label=['A', 'B'], bin=2, pair=['AA', 'AB', 'BB'],
-              cf=['(AA - 2 * AB + BB) / BB'], wp=True, soft_hist=True,
+              cf=['(AA - 2 * AB + BB) / BB'], wp=True, soft_hist=True, soft_pad=0,
               soft_sigma=15.0, soft_pi=True, soft_pi_sigma=8.0, box=400.)
     G = rng.normal(size=(ns,))          # cotangent on w_p(s_perp)
 
@@ -659,9 +660,9 @@ def test_vjp_wp_chain():
     dirs = {'A': v1, 'B': v2}
     for pair, c in cot.items():
         out = boxes.soft_hist_vjp([d, r], [w1, w2], se, pe, 1,
-                                  pair=pair, cotangent=c, soft_sigma=15.0,
-                                  soft_pi=True, soft_pi_sigma=8.0, bin=2,
-                                  box=400.)
+                                  pair=pair, cotangent=c, soft_pad=0,
+                                  soft_sigma=15.0, soft_pi=True,
+                                  soft_pi_sigma=8.0, bin=2, box=400.)
         for lab, gl in out['grads'].items():
             an += float(np.sum(gl * dirs[lab]))
     assert np.isclose(an, fd, rtol=1e-4, atol=1e-6 * abs(fd)), \
@@ -679,7 +680,7 @@ def test_vjp_auto_deep_tree():
     se = np.arange(0, 151, 10.)
     pe = np.arange(0, 91, 10.)
     g = rng.normal(size=(len(se) - 1, len(pe) - 1))
-    kw = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True,
+    kw = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True, soft_pad=0,
               soft_sigma=5.0, soft_pi=True, soft_pi_sigma=5.0, box=400.)
 
     def loss(x):
@@ -690,7 +691,7 @@ def test_vjp_auto_deep_tree():
     v = rng.normal(size=d.shape)
     eps = 1e-6
     fd = (loss(d + eps * v) - loss(d - eps * v)) / (2 * eps)
-    out = boxes.soft_hist_vjp([d], [w], se, pe, 1, pair='AA', cotangent=g,
+    out = boxes.soft_hist_vjp([d], [w], se, pe, 1, pair='AA', soft_pad=0, cotangent=g,
                               soft_sigma=5.0, soft_pi=True,
                               soft_pi_sigma=5.0, bin=2, box=400.)
     an = float(np.sum(out['grads']['A'] * v))
@@ -703,7 +704,7 @@ def test_vjp_auto_deep_tree():
     se2 = np.linspace(0, dmax * 1.05, 12)
     pe2 = np.linspace(0, dmax * 1.05, 8)
     g2 = rng.normal(size=(len(se2) - 1, len(pe2) - 1))
-    kws = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True,
+    kws = dict(label=['A'], bin=2, pair=['AA'], soft_hist=True, soft_pad=0,
                soft_sigma=15.0, soft_pi=True, soft_pi_sigma=15.0)
 
     def loss2(x):
@@ -713,7 +714,7 @@ def test_vjp_auto_deep_tree():
 
     v2 = rng.normal(size=xyz.shape)
     fd2 = (loss2(xyz + eps * v2) - loss2(xyz - eps * v2)) / (2 * eps)
-    out2 = sky.soft_hist_vjp([xyz], [wz], se2, pe2, 1, pair='AA',
+    out2 = sky.soft_hist_vjp([xyz], [wz], se2, pe2, 1, pair='AA', soft_pad=0,
                              cotangent=g2, soft_sigma=15.0, soft_pi=True,
                              soft_pi_sigma=15.0, bin=2)
     an2 = float(np.sum(out2['grads']['A'] * v2))
@@ -733,7 +734,7 @@ def test_vjp_sigma_log():
     se = np.geomspace(1.0, 150.0, 18)
     f = 0.06
     g = rng.normal(size=(len(se) - 1,))
-    kw = dict(label=['A', 'B'], bin=0, pair=['AB'], soft_hist=True,
+    kw = dict(label=['A', 'B'], bin=0, pair=['AB'], soft_hist=True, soft_pad=0,
               soft_sigma=f, soft_sigma_log=True, box=400.)
 
     def loss(x, ff=f):
@@ -745,7 +746,7 @@ def test_vjp_sigma_log():
     v = rng.normal(size=d.shape)
     eps = 1e-6
     fd = (loss(d + eps * v) - loss(d - eps * v)) / (2 * eps)
-    out = boxes.soft_hist_vjp([d, r], [w1, w2], se, None, 1, pair='AB',
+    out = boxes.soft_hist_vjp([d, r], [w1, w2], se, None, 1, pair='AB', soft_pad=0,
                               cotangent=g, soft_sigma=f,
                               soft_sigma_log=True, bin=0, box=400.,
                               grad_sigma=True)
@@ -755,6 +756,8 @@ def test_vjp_sigma_log():
     fdf = (loss(d, f + epsf) - loss(d, f - epsf)) / (2 * epsf)
     assert np.isclose(out['grad_sigma'], fdf, rtol=1e-4,
                       atol=1e-7 * abs(fdf))
+
+
 def test_vjp_hard_second_dim_multibin():
     """Regression test: hard mu / pi binning with more than one bin.
 
@@ -780,7 +783,7 @@ def test_vjp_hard_second_dim_multibin():
         g = rrng.normal(size=(ns, n2))
         v = rrng.normal(size=cats[1].shape)
         fwd = dict(label=labels, bin=bin_type, pair=['AB'], soft_hist=True,
-                   soft_sigma=SIGMA, **extra)
+                   soft_pad=0, soft_sigma=SIGMA, **extra)
 
         def loss(x):
             res = mod.py_compute_cf([cats[0], x], wts, edges, pedges, nmu,
@@ -790,7 +793,7 @@ def test_vjp_hard_second_dim_multibin():
 
         fd = _fd_directional(loss, cats[1], v)
         out = mod.soft_hist_vjp(cats, wts, edges, pedges, nmu, pair='AB',
-                                cotangent=g, soft_sigma=SIGMA,
+                                cotangent=g, soft_sigma=SIGMA, soft_pad=0,
                                 bin=bin_type, **extra)
         an = float(np.sum(out['grads'][labels[1]] * v))
         assert np.isfinite(an), "adjoint produced non-finite gradients"
