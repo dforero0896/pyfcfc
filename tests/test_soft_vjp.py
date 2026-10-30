@@ -755,3 +755,61 @@ def test_vjp_sigma_log():
     fdf = (loss(d, f + epsf) - loss(d, f - epsf)) / (2 * epsf)
     assert np.isclose(out['grad_sigma'], fdf, rtol=1e-4,
                       atol=1e-7 * abs(fdf))
+def test_vjp_hard_second_dim_multibin():
+    """Regression test: hard mu / pi binning with more than one bin.
+
+    The adjoint contraction used to apply the offset ``j0 * ns`` of the
+    hard second-dimension bin twice (``g = job->g + off`` was further
+    indexed with ``i + j0 * ns``), reading the cotangents out of bounds:
+    wrong gradients for nmu > 1, and NaNs when smin > 0.  The legacy
+    tests covered the hard mu dimension only with nmu = 1, where
+    j0 == 0 hides the bug.
+    """
+    rng = np.random.default_rng(34)
+    import pyfcfc.boxes as boxes
+    import pyfcfc.sky as skymod
+    d, r = _make_box_catalogs(rng)
+    w1 = rng.uniform(0.5, 1.5, len(d))
+    w2 = rng.uniform(0.5, 1.5, len(r))
+
+    def check(mod, cats, wts, edges, pedges, nmu, bin_type, extra, seed=0):
+        labels = [chr(65 + i) for i in range(len(cats))]
+        ns = len(edges) - 1
+        n2 = nmu if bin_type == 1 else len(pedges) - 1
+        rrng = np.random.default_rng(999 + seed)
+        g = rrng.normal(size=(ns, n2))
+        v = rrng.normal(size=cats[1].shape)
+        fwd = dict(label=labels, bin=bin_type, pair=['AB'], soft_hist=True,
+                   soft_sigma=SIGMA, **extra)
+
+        def loss(x):
+            res = mod.py_compute_cf([cats[0], x], wts, edges, pedges, nmu,
+                                    **fwd)
+            return float(np.sum(g * res['pairs']['AB'] *
+                                res['normalization']['AB']))
+
+        fd = _fd_directional(loss, cats[1], v)
+        out = mod.soft_hist_vjp(cats, wts, edges, pedges, nmu, pair='AB',
+                                cotangent=g, soft_sigma=SIGMA,
+                                bin=bin_type, **extra)
+        an = float(np.sum(out['grads'][labels[1]] * v))
+        assert np.isfinite(an), "adjoint produced non-finite gradients"
+        assert np.isclose(an, fd, rtol=1e-4, atol=1e-7 * max(1.0, abs(fd)))
+
+    extra = dict(box=400.)
+    # hard mu bins with nmu = 4: smin = 0 ...
+    check(boxes, [d, r], [w1, w2], S_EDGES, None, 4, 1, extra, seed=0)
+    # ... and smin > 0 (the strict-single traversal path)
+    edges2 = np.arange(20, 181, 20, dtype=np.float64)
+    check(boxes, [d, r], [w1, w2], edges2, None, 4, 1, extra, seed=1)
+    # hard pi bins with np = 3
+    pedges3 = np.array([0., 40., 80., 120.])
+    check(boxes, [d, r], [w1, w2], edges2, pedges3, 1, 2, extra, seed=2)
+    # the sky module shares the adjoint code
+    xyz = _make_sky_catalog(rng)
+    xyz_r = _make_sky_catalog(np.random.default_rng(35))
+    w3 = rng.uniform(0.5, 1.5, len(xyz))
+    w4 = rng.uniform(0.5, 1.5, len(xyz_r))
+    dmax = np.max(np.linalg.norm(xyz[:, None] - xyz_r[None, :], axis=-1))
+    se = np.linspace(0, dmax * 1.05, 8)
+    check(skymod, [xyz, xyz_r], [w3, w4], se, None, 3, 1, {}, seed=3)
