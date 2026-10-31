@@ -32,7 +32,7 @@ SIGMA = 4.0
 def _soft_dd_np(x, w):
     res = py_compute_cf([np.asarray(x, np.float64)], [np.asarray(w, np.float64)],
                         S_EDGES, None, 1, label=['A'], bin=0, pair=['AA'],
-                        soft_hist=True, soft_sigma=SIGMA, box=BOX)
+                        soft_hist=True, soft_pad=0, soft_sigma=SIGMA, box=BOX)
     return res['pairs']['AA'] * res['normalization']['AA']
 
 
@@ -50,7 +50,7 @@ def _bwd(res, g):
     out = soft_hist_vjp([np.asarray(x, np.float64)],
                         [np.asarray(w, np.float64)], S_EDGES, None, 1,
                         pair='AA', cotangent=np.asarray(g, np.float64),
-                        soft_sigma=SIGMA, bin=0, box=BOX)
+                        soft_sigma=SIGMA, soft_pad=0, bin=0, box=BOX)
     return jnp.asarray(out['grads']['A']), jnp.zeros_like(w)
 
 
@@ -106,7 +106,8 @@ LOG_EDGES = np.geomspace(2.0, 120.0, 13)
 
 def _log_kwargs(**over):
     kw = dict(module="boxes", s_edges=LOG_EDGES, pairs=("AB",),
-              labels=["A", "B"], soft_sigma_log=True, bin=0, box=BOX)
+              labels=["A", "B"], soft_sigma_log=True, soft_pad=0, bin=0,
+              box=BOX)
     kw.update(over)
     return kw
 
@@ -460,7 +461,7 @@ def test_pjax_jit_multipole_chain():
     r = rng.uniform(100, 300, (90, 3))
     wd = rng.uniform(0.5, 1.5, len(d))
     wr = np.ones(len(r))
-    kw = dict(module="boxes", s_edges=S_EDGES_2D, pairs=("DD", "DR", "RR"),
+    kw = dict(soft_pad=0, module="boxes", s_edges=S_EDGES_2D, pairs=("DD", "DR", "RR"),
               labels=["D", "R"], soft_sigma=4.1, soft_mu=True,
               soft_mu_sigma=0.08, nmu=4, bin=1, box=BOX)
     R, WR = jnp.asarray(r), jnp.asarray(wr)
@@ -501,7 +502,7 @@ def test_pjax_jit_wp_chain():
     r = rng.uniform(100, 300, (90, 3))
     wd = rng.uniform(0.5, 1.5, len(d))
     wr = np.ones(len(r))
-    kw = dict(module="boxes", s_edges=S_EDGES_2D, pedges=PI_EDGES,
+    kw = dict(soft_pad=0, module="boxes", s_edges=S_EDGES_2D, pedges=PI_EDGES,
               pairs=("DD", "DR", "RR"), labels=["D", "R"], soft_sigma=4.2,
               soft_pi=True, soft_pi_sigma=5.0, bin=2, box=BOX)
     R, WR = jnp.asarray(r), jnp.asarray(wr)

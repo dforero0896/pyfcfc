@@ -24,7 +24,11 @@ Besides the standard (hard) histogram pair counting of FCFC, an optional
 *soft histogramming* method is available with ``soft_hist=True``: every pair
 is spread over all separation bins with the softmax of a Gaussian kernel of
 width ``soft_sigma`` centred on the bins, conserving the total pair weight
-(see the ``py_compute_cf`` docstrings and the README for details).
+(see the ``py_compute_cf`` docstrings and the README for details).  By
+default the counting range is padded by two kernel widths beyond the
+outermost bin edges (``soft_pad``), so that the truncated kernel tails do
+not bias the outermost bins; the discarded buffer bins are handled
+internally.
 The reverse-mode derivative (VJP) of the soft pair counts with respect to
 the catalogue coordinates, the weights and the kernel width is provided by
 ``soft_hist_vjp`` in both modules, for use with reverse-mode autodiff
@@ -35,7 +39,7 @@ random-catalog splits, integrate correlation functions, and convert results
 to the state format of `pycorr <https://github.com/cosmodesi/pycorr>`_.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = ["boxes", "sky", "utils", "external", "__version__"]
 

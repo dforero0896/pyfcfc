@@ -972,7 +972,9 @@ static inline void soft_bin_pair_adj(const SOFT_CONF *conf,
           acc += g[i + (size_t) j * ns] * scr_mu[j];
         acc /= msum;
       }
-      else acc = g[i + j0 * ns];
+      /* hard second dimension: `g' already includes the
+       * off = j0 * ns offset of the hard mu / pi bin. */
+      else acc = g[i];
       gs[i] = acc;
     }
   }
@@ -1026,7 +1028,7 @@ static inline void soft_bin_pair_adj(const SOFT_CONF *conf,
     const double invM = 1.0 / msum;
     for (int j = mlo; j <= mhi; j++) wbar += gm[j] * scr_mu[j] * invM;
   }
-  else wbar = g[sb + j0 * ns];
+  else wbar = g[sb];      /* `g' carries the off = j0 * ns offset */
 
   const bool soft2 = (soft_mu || pi_soft);
   const bool is_mu = (conf->bintype == FCFC_BIN_SMU);

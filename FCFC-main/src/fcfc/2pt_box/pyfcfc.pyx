@@ -13,6 +13,9 @@ that the Python bindings cannot desynchronise from the C structure layouts.
 
 import numpy as np
 
+from pyfcfc._softpad import (SOFT_PAD_DEFAULT, pad_cotangent, plan_padding,
+                             slice_results)
+
 from libc.stdlib cimport malloc, free
 
 cdef extern from "define.h":
@@ -102,6 +105,12 @@ _OPTION_HINTS = {
     'sigma': "the Gaussian kernel width is called 'soft_sigma'",
     'soft_kernel': "the Gaussian kernel width is called 'soft_sigma'",
     'kernel_sigma': "the Gaussian kernel width is called 'soft_sigma'",
+    'pad': ("the edge padding of the soft histogram method is called "
+            "'soft_pad'"),
+    'soft_padding': ("the edge padding of the soft histogram method is "
+                     "called 'soft_pad'"),
+    'pad_width': ("the edge padding of the soft histogram method is "
+                  "called 'soft_pad'"),
     'soft_mu_sigma': "the mu kernel width is called 'soft_mu_sigma'",
     'mu_sigma': "the mu kernel width is called 'soft_mu_sigma'",
     'nthreads': ("the number of OpenMP threads is set through the "
@@ -319,7 +328,7 @@ cdef dict _extract_results(CF *cf):
 def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
                   soft_hist=False, soft_sigma=None, soft_mu=False,
                   soft_mu_sigma=None, soft_pi=False, soft_pi_sigma=None,
-                  soft_sigma_log=False, **kwargs):
+                  soft_sigma_log=False, soft_pad=None, **kwargs):
     """Evaluate pair counts and correlation functions with FCFC.
 
     Parameters
@@ -352,14 +361,16 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
 
             W_i = softmax_i(-(s - c_i)^2 / (2 * soft_sigma^2)),
 
-        so that the total weight of the pairs with smin <= s < smax is
-        conserved.  Pair counts become fractional (they are always
+        so that the total weight of the counted pairs is conserved
+        (over the padded counting range when ``soft_pad > 0``; see
+        below).  Pair counts become fractional (they are always
         accumulated in double precision), while the pi (``bin=2``)
         dimension (and mu, unless ``soft_mu=True``) remains hard-binned.
         The tree
         traversal and the pair selection are identical to the standard
         method, so the two histograms are directly comparable.  The
-        soft kernels are scalar but OpenMP-parallel; for linear bins
+        soft kernels are OpenMP-parallel (and vectorised in WITH_SIMD
+        builds); for linear bins
         the kernel weights are generated with an exact multiplicative
         recurrence over an adaptive window, costing O(min(ns, sigma /
         ds)) per pair: typically a few times slower than the standard
@@ -374,6 +385,27 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
         kernel width sigma(s) = f * s (for logarithmic separation bins);
         the default f (soft_sigma=None) is half the mean logarithmic bin
         width.  Requires soft_hist=True.
+    soft_pad : float, optional
+        Edge padding of the soft histogram method, in kernel widths.
+        The Gaussian kernel has infinite support, but only pairs inside
+        the binning range are counted, so without padding the kernel
+        tails of the outermost bins are truncated: for a steep xi(s)
+        this biases the last separation bin high (and the first bin
+        slightly low).  With ``soft_pad = z > 0`` the counting range is
+        extended by z kernel widths beyond the outermost edges, realised
+        with buffer bins continuing the grid (geometrically for
+        log-spaced bins); the softmax then normalises over the real and
+        buffer centres, the buffer pairs contribute their decaying
+        kernel tails to the outermost real bins, and the buffer bins are
+        discarded from the returned results.  Default None: z = 2 when
+        ``soft_hist=True`` (0 otherwise); ``soft_pad=0`` disables the
+        padding and restores the unpadded estimator exactly.  In a
+        periodic box the extended maximum edge is clamped below half the
+        box size.  Cost: the buffer shell increases the number of
+        counted pairs, by roughly ``exp(3 z f) - 1`` at the upper edge
+        for log-spaced bins with the scale-free kernel (+33% for z = 2
+        at 0.1 dex bins, +86% at 0.2 dex); much less for linear bins.
+        See the README for details.
     soft_mu : bool, optional
         Also soft-bin the mu dimension of the (s, mu) scheme with the
         same softmax Gaussian kernel (over the mu bin centres), making
@@ -458,6 +490,29 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
             raise ValueError("soft_sigma_log requires soft_hist=True "
                              "(sigma(s) = soft_sigma * s)")
         kwargs['soft_sigma_log'] = True
+    pad_explicit = soft_pad is not None
+    if soft_pad is None:
+        soft_pad = SOFT_PAD_DEFAULT if soft_hist else 0.0
+    else:
+        if isinstance(soft_pad, bool) or not isinstance(
+                soft_pad, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_pad must be a number, got "
+                            f"{type(soft_pad).__name__}")
+        soft_pad = float(soft_pad)
+        if not np.isfinite(soft_pad) or soft_pad < 0:
+            raise ValueError(f"soft_pad must be a non-negative finite "
+                             f"number, got {soft_pad!r}")
+        if soft_pad > 0 and not soft_hist:
+            raise ValueError("soft_pad is only meaningful with soft "
+                             "histogramming: pass soft_hist=True as well")
+    if soft_pad > 0 and 'conf' in kwargs:
+        if pad_explicit:
+            raise ValueError("soft_pad cannot be combined with a "
+                             "configuration file (the wrapper cannot see "
+                             "its box size and kernel options); pad the "
+                             "bin edges manually, or pass the options as "
+                             "keyword arguments")
+        soft_pad = 0.0
     soft_mu = bool(soft_mu)
     if soft_mu_sigma is not None:
         if isinstance(soft_mu_sigma, bool) or not isinstance(
@@ -568,6 +623,30 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
         raise ValueError("sedges must be strictly increasing")
     if sedges_arr[0] < 0:
         raise ValueError("sedges must be non-negative")
+
+    # ------------------------------------------------------------------
+    # Edge padding of the soft histogram method: append buffer bins that
+    # extend the counting range by `soft_pad' kernel widths beyond the
+    # outermost edges (see pyfcfc/_softpad.py for the rationale and the
+    # cost); the buffer bins are sliced out of the results afterwards.
+    # ------------------------------------------------------------------
+    cdef int ns_real = sedges_arr.size - 1
+    cdef int pad_lo = 0
+    cdef int pad_hi = 0
+    if soft_pad > 0:
+        max_edge = None
+        boxopt = kwargs.get('box')
+        if boxopt is not None:
+            max_edge = 0.5 * float(np.min(np.asarray(boxopt,
+                                                     dtype=np.float64)))
+            max_edge *= 1.0 - 1e-9
+        sedges_arr, pad_lo, pad_hi, sig_pin = plan_padding(
+            sedges_arr, soft_pad, kwargs.get('soft_sigma'),
+            bool(kwargs.get('soft_sigma_log')), max_edge)
+        if sig_pin is not None:
+            kwargs['soft_sigma'] = sig_pin
+        sedges_arr = np.ascontiguousarray(sedges_arr, dtype=np.float64)
+
     cdef int ns = sedges_arr.size - 1
     cdef double[::1] sedges_mv = sedges_arr
 
@@ -651,7 +730,10 @@ def py_compute_cf(data_cats, data_wts, sedges, pedges=None, nmu=1,
         if cf is NULL:
             raise RuntimeError("FCFC failed to evaluate the correlation "
                                "function; see the error message above")
-        return _extract_results(cf)
+        results = _extract_results(cf)
+        if pad_lo or pad_hi:
+            slice_results(results, pad_lo, ns_real)
+        return results
     finally:
         if argv is not NULL:
             free(argv)
@@ -664,7 +746,7 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
                   normalized=False, grad_wts=False, grad_sigma=False,
                   grad_mu_sigma=False, grad_pi_sigma=False, soft_mu=False,
                   soft_mu_sigma=None, soft_pi=False, soft_pi_sigma=None,
-                  soft_sigma_log=False, **kwargs):
+                  soft_sigma_log=False, soft_pad=None, **kwargs):
     """Reverse-mode derivative (VJP) of the soft histogram pair counts.
 
     Adjoint of the soft histogramming method (see ``py_compute_cf`` with
@@ -691,6 +773,11 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
     soft_sigma : float, optional
         Kernel width used in the forward pass (must match); the default
         (None) is half the mean bin width, as in the forward.
+    soft_pad : float, optional
+        Edge padding used in the forward pass (must match); the default
+        (None) selects the same default as ``py_compute_cf`` (2 kernel
+        widths).  The `cotangent` refers to the *real* bins, as usual:
+        the buffer bins are handled internally.
     normalized : bool, optional
         Set True if `cotangent` refers to the *normalized* pair counts
         (``results['pairs'][pair]``) instead of the raw ones; the
@@ -784,6 +871,26 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
             raise ValueError(f"soft_sigma must be a positive finite "
                              f"number, got {soft_sigma!r}")
         kwargs['soft_sigma'] = sig
+    pad_explicit = soft_pad is not None
+    if soft_pad is None:
+        soft_pad = SOFT_PAD_DEFAULT
+    else:
+        if isinstance(soft_pad, bool) or not isinstance(
+                soft_pad, (int, float, np.integer, np.floating)):
+            raise TypeError(f"soft_pad must be a number, got "
+                            f"{type(soft_pad).__name__}")
+        soft_pad = float(soft_pad)
+        if not np.isfinite(soft_pad) or soft_pad < 0:
+            raise ValueError(f"soft_pad must be a non-negative finite "
+                             f"number, got {soft_pad!r}")
+    if soft_pad > 0 and 'conf' in kwargs:
+        if pad_explicit:
+            raise ValueError("soft_pad cannot be combined with a "
+                             "configuration file (the wrapper cannot see "
+                             "its box size and kernel options); pad the "
+                             "bin edges manually, or pass the options as "
+                             "keyword arguments")
+        soft_pad = 0.0
     # the VJP corresponds to the weighted counting path
     kwargs.setdefault('weight', ['w'] * ncat)
 
@@ -812,6 +919,25 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
             np.any(np.diff(sedges_arr) <= 0) or sedges_arr[0] < 0:
         raise ValueError("sedges must be finite, non-negative and strictly "
                          "increasing")
+    # Edge padding of the soft histogram method, exactly as in
+    # py_compute_cf (the adjoint traversal must replay the forward pair
+    # selection, hence the same extended grid).
+    cdef int ns_real = sedges_arr.size - 1
+    cdef int pad_lo = 0
+    cdef int pad_hi = 0
+    if soft_pad > 0:
+        max_edge = None
+        boxopt = kwargs.get('box')
+        if boxopt is not None:
+            max_edge = 0.5 * float(np.min(np.asarray(boxopt,
+                                                     dtype=np.float64)))
+            max_edge *= 1.0 - 1e-9
+        sedges_arr, pad_lo, pad_hi, sig_pin = plan_padding(
+            sedges_arr, soft_pad, kwargs.get('soft_sigma'),
+            bool(kwargs.get('soft_sigma_log')), max_edge)
+        if sig_pin is not None:
+            kwargs['soft_sigma'] = sig_pin
+        sedges_arr = np.ascontiguousarray(sedges_arr, dtype=np.float64)
     cdef int ns = sedges_arr.size - 1
     cdef double[::1] sedges_mv = sedges_arr
 
@@ -833,16 +959,21 @@ def soft_hist_vjp(data_cats, data_wts, sedges, pedges=None, nmu=1,
     bintype = int(kwargs.get('bin', 0))
     cot = np.asarray(cotangent, dtype=np.float64)
     if bintype == 1:
-        exp_shape = (ns, int(nmu))
+        exp_shape = (ns_real, int(nmu))
     elif bintype == 2:
-        exp_shape = (ns, npi)
+        exp_shape = (ns_real, npi)
     else:
-        exp_shape = (ns,)
+        exp_shape = (ns_real,)
     if cot.shape != exp_shape:
         raise ValueError(f"cotangent must have shape {exp_shape}, got "
                          f"{cot.shape}")
     if not np.all(np.isfinite(cot)):
         raise ValueError("cotangent must be finite")
+    if pad_lo or pad_hi:
+        # zero cotangents on the buffer bins: they are discarded from
+        # the forward counts (they still normalise the real-bin weights,
+        # which the C adjoint replays exactly)
+        cot = pad_cotangent(cot, pad_lo, ns)
     # internal bin layout: index = s_idx + second_idx * ns; copy into a
     # writable buffer (autodiff engines hand over read-only views)
     g_arr = np.array(cot if cot.ndim == 1 else cot.T, dtype=np.float64,
