@@ -183,3 +183,8 @@ examples/figures/
 
 # jupyter checkpoints
 notebooks/.ipynb_checkpoints/
+
+# local development artifacts (uv workspace, ad-hoc smoke scripts)
+.builddeps/
+.uv-cache/
+_smoke/

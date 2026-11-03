@@ -16,7 +16,10 @@ consistency with the standard (hard) histogram method of the C library:
   cross pairs (boxes and sky modules);
 - conservation of the total pair weight (and, for the 2D schemes, of the
   weight in every mu / pi slab) with respect to the hard method;
-- convergence to the hard histogram in the limit ``soft_sigma -> 0``;
+- the ``soft_sigma -> 0`` limit: the hard histogram for uniform bins (where
+  the bin centres are the bin midpoints), and the nearest-centre (Voronoi)
+  histogram for non-uniform, e.g. logarithmic, bins, where the kernel is
+  Gaussian in ``s`` but the bins are resolved in ``log s``;
 - validation of the Python entry points.
 """
 
@@ -36,6 +39,19 @@ SIGMA = 2.5
 def _raw(results, pair):
     """Un-normalized pair counts from a pyfcfc results dictionary."""
     return results['pairs'][pair] * results['normalization'][pair]
+
+
+def _nearest_centre_edges(edges):
+    """Hard-bin edges enclosing the Voronoi (nearest-centre) cells.
+
+    The soft kernel is a Gaussian centred on the arithmetic bin centres,
+    so its ``sigma -> 0`` limit puts every pair in the cell of its nearest
+    centre.  For non-uniform bins those cell boundaries are the midpoints
+    of neighbouring centres, which are generally *not* the input edges.
+    """
+    cen = 0.5 * (edges[:-1] + edges[1:])
+    return np.concatenate(([edges[0]], 0.5 * (cen[:-1] + cen[1:]),
+                           [edges[-1]]))
 
 
 # ============================================================================
@@ -254,7 +270,12 @@ def test_soft_conserves_total_weight(box_catalogs):
 
 
 def test_soft_sigma_to_zero_matches_hard(box_catalogs):
-    """In the sigma -> 0 limit the soft histogram converges to the hard one."""
+    """Uniform bins: the sigma -> 0 limit is the hard histogram.
+
+    For uniform bins the arithmetic centres are the bin midpoints, so the
+    nearest-centre cells coincide with the bins.  Non-uniform bins converge
+    to the nearest-centre histogram instead (next test).
+    """
     cat = box_catalogs
     data, box = cat['data'][:900], cat['box']
     w = np.ones(len(data))
@@ -270,6 +291,73 @@ def test_soft_sigma_to_zero_matches_hard(box_catalogs):
     # the two neighbouring bins
     assert_counts_close(soft, hard, rtol=1e-9, atol=1.0,
                         msg="sigma -> 0 limit")
+
+
+@pytest.mark.parametrize("sigma_kw", [
+    dict(soft_sigma=1e-4, soft_sigma_log=True),   # scale-free kernel
+    dict(soft_sigma=1e-3),                        # constant kernel
+])
+def test_soft_sigma_to_zero_non_uniform_matches_nearest_centre(
+        box_catalogs, sigma_kw):
+    """Non-uniform bins: the kernel limit is the nearest-centre histogram.
+
+    A logarithmic grid is resolved in ``log s`` while the kernel is a
+    Gaussian in ``s`` centred on the arithmetic bin centres, so
+    ``sigma -> 0`` assigns each pair to its nearest centre.  The Voronoi
+    cell boundaries are the midpoints of neighbouring centres, not the
+    geometric input edges; the limit is therefore *not* the hard histogram
+    (see the next test).
+
+    This also guards the kernel window: ``SOFT_WINDOW_SIGMA * sigma`` is
+    far below the smallest bin width here, so the windowed softmax must
+    explicitly retain the nearest centre instead of falling between two
+    centres.
+    """
+    cat = box_catalogs
+    data, box = cat['data'], cat['box']
+    w = np.ones(len(data))
+    edges = np.geomspace(2.0, 120.0, 21)
+    near = _nearest_centre_edges(edges)
+    common = dict(label=['D'], bin=0, pair=['DD'], box=box)
+
+    soft = _raw(py_compute_cf([data], [w], edges, None, 1, soft_hist=True,
+                              soft_pad=0, **sigma_kw, **common), 'DD')
+    ref = _raw(py_compute_cf([data], [w], near, None, 1, **common), 'DD')
+    hard = _raw(py_compute_cf([data], [w], edges, None, 1, **common), 'DD')
+
+    assert_counts_close(soft, ref, rtol=1e-7, atol=1.0,
+                        msg="sigma -> 0 nearest-centre limit")
+    # redistributing the weight must not create or lose pairs
+    assert np.isclose(soft.sum(), hard.sum(), rtol=1e-11)
+    # the reference really is different from the hard histogram
+    assert not np.allclose(ref, hard, rtol=1e-2)
+
+
+@pytest.mark.parametrize("f", [1e-3, 1e-4])
+def test_soft_sigma_log_does_not_converge_to_hard(box_catalogs, f):
+    """A scale-free kernel on log bins has no hard-binning limit.
+
+    The counts stay offset from the hard histogram by an amount set by the
+    bin width (a sizeable fraction of the local log bin width), no matter
+    how small the scale-free width ``sigma(s) = f * s`` becomes.  Making
+    the grid finer shrinks the offset; making ``f`` smaller does not.
+    """
+    cat = box_catalogs
+    data, box = cat['data'], cat['box']
+    w = np.ones(len(data))
+    edges = np.geomspace(2.0, 120.0, 21)
+    common = dict(label=['D'], bin=0, pair=['DD'], box=box)
+
+    soft = _raw(py_compute_cf([data], [w], edges, None, 1, soft_hist=True,
+                              soft_pad=0, soft_sigma=f, soft_sigma_log=True,
+                              **common), 'DD')
+    hard = _raw(py_compute_cf([data], [w], edges, None, 1, **common), 'DD')
+
+    ok = hard > 100.0                    # skip nearly empty bins
+    assert ok.sum() >= 10
+    rel = np.abs(soft[ok] - hard[ok]) / hard[ok]
+    assert np.max(rel) > 0.03, \
+        "scale-free kernel unexpectedly reproduced the hard histogram"
 
 
 def test_soft_default_sigma(box_catalogs):

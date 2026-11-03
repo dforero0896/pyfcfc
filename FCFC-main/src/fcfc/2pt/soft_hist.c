@@ -541,6 +541,28 @@ static inline double soft_weights_recip(const int n, const double c0,
   return sum;
 }
 
+/******************************************************************************
+Function `soft_nearest_centre`:
+  Index of the bin centre nearest to `s` (ties go to the lower centre).
+  The Gaussian softmax is always peaked on this centre, so it must be part
+  of the kernel window even when `SOFT_WINDOW_SIGMA * sigma` is much
+  narrower than a bin: otherwise the window can fall between two centres
+  and the truncation, not the kernel, decides the limit sigma -> 0.
+******************************************************************************/
+static inline int soft_nearest_centre(const real *cen, const int n,
+    const double s) {
+  if (n <= 1) return 0;
+  if ((double) cen[0] >= s) return 0;
+  if ((double) cen[n - 1] <= s) return n - 1;
+  int lo = 0, hi = n - 1;
+  while (hi - lo > 1) {
+    const int mid = (lo + hi) >> 1;
+    if ((double) cen[mid] <= s) lo = mid;
+    else hi = mid;
+  }
+  return (s - (double) cen[lo] <= (double) cen[hi] - s) ? lo : hi;
+}
+
 static inline double soft_weights_gen(const real *cen, const int n,
     const double inv2sig2, const double sigma, const real s,
     double *scratch, int *lo, int *hi);
@@ -579,6 +601,13 @@ static inline double soft_weights(const SOFT_CONF *conf, const real s,
   }
   a1 = ((double) conf->scen[hi0] <= whi) ? hi0 : lo0;
   if (a1 < a0) a1 = a0;
+  /* The window may contain no centre at all when sigma is far below the
+   * bin width; always keep the softmax peak in the evaluation set. */
+  {
+    const int mnear = soft_nearest_centre(conf->scen, ns, dsv);
+    if (mnear < a0) a0 = mnear;
+    else if (mnear > a1) a1 = mnear;
+  }
   double xmin = DBL_MAX;
   for (int i = a0; i <= a1; i++) {
     const double d = dsv - (double) conf->scen[i];
@@ -629,6 +658,13 @@ static inline double soft_weights_gen(const real *cen, const int n,
   }
   a1 = ((double) cen[hi0] <= whi) ? hi0 : lo0;
   if (a1 < a0) a1 = a0;
+  /* The window may contain no centre at all when sigma is far below the
+   * bin width; always keep the softmax peak in the evaluation set. */
+  {
+    const int mnear = soft_nearest_centre(cen, n, dsv);
+    if (mnear < a0) a0 = mnear;
+    else if (mnear > a1) a1 = mnear;
+  }
   double xmin = DBL_MAX;
   double sum = 0;
 #if FCFC_SIMD != FCFC_SIMD_NONE && defined(SOFT_VEXP_W)
