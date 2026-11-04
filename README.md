@@ -418,7 +418,11 @@ the same callable and hence JAX's tracing/compilation caches; the C
 library runs on host arrays registered via `jax.pure_callback`, so the
 primitive works eagerly *and* under `jax.jit`, for both the forward pass
 and `jax.grad` (jit correctness and compilation caching are covered by
-`tests/test_soft_vjp_jax.py`).  The helpers
+`tests/test_soft_vjp_jax.py`).  Importing `pyfcfc.jax` does not enable
+JAX's x64 mode: the C library accumulates in double precision internally,
+but the module follows the precision of the JAX inputs, returning float32
+counts and float32 gradients for float32 catalogues (float64 inputs use
+the full double-precision path when x64 is enabled).  The helpers
 `pair_normalizations`, `xi_landy_szalay`, `multipoles`, `projected_wp`
 and `legpoly` implement FCFC's conventions in JAX, so a whole xi /
 multipole / w_p pipeline becomes differentiable with plain `jax.grad`.

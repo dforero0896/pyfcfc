@@ -38,11 +38,19 @@ eagerly or inside ``jax.jit`` (forward *and* gradients); its
 ``custom_vjp`` object is created once per static configuration and
 cached, keeping JAX's tracing/compilation caches effective.
 
-Requires ``jax`` (CPU is fine); double precision is enabled on import
-(``jax_enable_x64``), matching the double-precision C kernels.  The
-``jax.pure_callback`` vmapping keyword is resolved against the installed
-jax (``vmap_method="sequential"`` on jax >= 0.4.31, ``vectorized=False``
-on older releases), so the module works across jax versions.
+Requires ``jax`` (CPU is fine).  Importing this module does **not** change
+JAX's precision configuration: it works with the default 32-bit JAX just
+as well as with ``jax_enable_x64``.  The C library always accumulates in
+double precision, but accepts float32 inputs and its outputs are cast back
+to the floating dtype of the JAX inputs before they re-enter the graph.
+Hence float32 positions and weights give float32 pair counts and float32
+gradients (the histogramming is a soft, overlapping operation, so the
+round-trip precision is not critical), while float64 inputs still use the
+full double-precision path when x64 is enabled; mixed float32/float64
+inputs are promoted to float64.  The ``jax.pure_callback`` vmapping keyword
+is resolved against the installed jax
+(``vmap_method="sequential"`` on jax >= 0.4.31, ``vectorized=False`` on
+older releases), so the module works across jax versions.
 
 JIT behaviour: one ``custom_vjp`` primitive is created per static
 configuration and cached in ``_PRIM_CACHE``; ``jax.jit`` then compiles
@@ -64,8 +72,6 @@ import jax.numpy as jnp
 from . import boxes as _boxes
 from . import sky as _sky
 from ._softpad import SOFT_PAD_DEFAULT
-
-jax.config.update("jax_enable_x64", True)
 
 __all__ = ["soft_pair_counts", "pair_normalizations", "xi_landy_szalay",
            "multipoles", "projected_wp", "legpoly"]
@@ -127,6 +133,19 @@ def _hashable(x):
     return x
 
 
+def _working_dtype(*arrays):
+    """Floating dtype used for the JAX <-> C round trip.
+
+    Follows the JAX inputs instead of forcing x64: float32 arrays stay
+    float32 (the C kernels cast to double internally and the results are
+    cast back), float64 arrays are used when x64 is enabled, and mixed
+    float32/float64 inputs are promoted.  Integer and reduced-precision
+    inputs are promoted to float32.
+    """
+    dtype = jnp.result_type(*(jnp.asarray(a).dtype for a in arrays))
+    return jnp.float64 if dtype == jnp.float64 else jnp.float32
+
+
 def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
                      pedges=None, nmu=1, pairs=("DD",), labels=None,
                      soft_sigma=None, soft_mu=False, soft_mu_sigma=None,
@@ -160,8 +179,10 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
     -------
     dict
         ``pair -> jnp.ndarray`` of raw (unnormalised) counts, shape
-        (ns,), (ns, nmu) or (ns, np).  Gradients flow to `positions`
-        and `weights` through the C adjoint.
+        (ns,), (ns, nmu) or (ns, np), with the floating dtype of the input
+        catalogues (float32 for float32 inputs, float64 for float64
+        inputs).  Gradients flow to `positions` and `weights` through the
+        C adjoint and have the same dtype as the corresponding input.
 
     Notes
     -----
@@ -179,8 +200,14 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
     summation order; single-threaded runs are fully deterministic.
     """
     mod = _mod(module)
-    pos = [jnp.asarray(p, jnp.float64) for p in positions]
-    wts = [jnp.asarray(w, jnp.float64) for w in weights]
+    pos = [jnp.asarray(p) for p in positions]
+    wts = [jnp.asarray(w) for w in weights]
+    # A single working dtype keeps the host callback signature uniform;
+    # the C layer computes in double and we cast back below.
+    dtype = _working_dtype(*pos, *wts)
+    pos = [p.astype(dtype) for p in pos]
+    wts = [w.astype(dtype) for w in wts]
+    out_dtype = np.dtype(dtype)
     ncat = len(pos)
     if labels is None:
         labels = [chr(ord('A') + i) for i in range(ncat)]
@@ -219,7 +246,8 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
     def _raw(p_list, w_list):
         res = mod.py_compute_cf(p_list, w_list, s_edges, pedges, nmu, **opts)
         nrm = res['normalization']
-        return tuple(np.asarray(res['pairs'][p] * nrm[p]) for p in pairs)
+        return tuple(np.asarray(res['pairs'][p] * nrm[p], dtype=out_dtype)
+                     for p in pairs)
 
     # static output shape of every pair count, set by the binning scheme
     # (bin=0: (ns,); bin=1 (s, mu): (ns, nmu); bin=2 (s_perp, pi): (ns, npi))
@@ -248,15 +276,16 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
         def _call(*host_args):
             return _raw([np.asarray(a) for a in host_args[:ncat]],
                         [np.asarray(a) for a in host_args[ncat:]])
-        shapes = (jax.ShapeDtypeStruct(out_shape, jnp.float64),) * len(pairs)
+        shapes = (jax.ShapeDtypeStruct(out_shape, dtype),) * len(pairs)
         return _pure_callback(_call, shapes, *args)
 
     vjp_opts = dict(fcfc_kwargs)
     vjp_opts['label'] = labels      # soft_hist_vjp takes the pair separately
 
-    key = _hashable(dict(module=str(module), s_edges=s_edges,
-                         pedges=pedges, nmu=int(nmu), pairs=pairs,
-                         labels=labels, opts=opts, fcfc=fcfc_kwargs))
+    key = _hashable(dict(module=str(module), dtype=out_dtype.name,
+                         s_edges=s_edges, pedges=pedges, nmu=int(nmu),
+                         pairs=pairs, labels=labels, opts=opts,
+                         fcfc=fcfc_kwargs))
     prim = _PRIM_CACHE.get(key)
     if prim is None:
         prim = jax.custom_vjp(base)
@@ -296,7 +325,10 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
                         if out['grad_wts'] and lab in out['grad_wts']:
                             gw[idx] = (gw[idx] +
                                        np.asarray(out['grad_wts'][lab]))
-                return tuple(gx + gw)
+                # The C adjoint works in double precision; cast each
+                # cotangent back to the dtype of the corresponding input.
+                return tuple(np.asarray(v, dtype=np.dtype(s.dtype))
+                             for v, s in zip(gx + gw, shapes))
 
             return _pure_callback(_call, shapes, *args, *g)
 
@@ -307,8 +339,13 @@ def soft_pair_counts(positions, weights, *, module="boxes", s_edges,
 
 
 def pair_normalizations(weights, pairs, labels=None):
-    """FCFC pair-count normalizations (ordered-pair convention), in JAX."""
-    wts = [jnp.asarray(w, jnp.float64) for w in weights]
+    """FCFC pair-count normalizations (ordered-pair convention), in JAX.
+
+    The result has the floating dtype of the input weights, so float32
+    weights keep the whole post-processing chain in float32."""
+    wts = [jnp.asarray(w) for w in weights]
+    dtype = _working_dtype(*wts)
+    wts = [w.astype(dtype) for w in wts]
     ncat = len(wts)
     if labels is None:
         labels = [chr(ord('A') + i) for i in range(ncat)]
@@ -356,9 +393,12 @@ def multipoles(xi, ells, nmu):
     """xi_ell(s_k) = sum_j xi(s_k, mu_j) (2 ell + 1) / nmu P_ell(mu_j),
     with mu_j = (j + 1/2) / nmu (FCFC's integration convention).
 
-    Parameters: xi of shape (ns, nmu); returns (nell, ns)."""
+    Parameters: xi of shape (ns, nmu); returns (nell, ns), preserving the
+    floating dtype of `xi`."""
     xi = jnp.asarray(xi)
-    mu_c = (jnp.arange(nmu) + 0.5) / nmu
+    dtype = _working_dtype(xi)
+    xi = xi.astype(dtype)
+    mu_c = (jnp.arange(nmu, dtype=dtype) + 0.5) / nmu
     return jnp.stack([jnp.sum(xi * legpoly(ell, mu_c)[None, :] *
                               (2 * ell + 1) / nmu, axis=1) for ell in ells])
 
@@ -367,6 +407,10 @@ def projected_wp(xi, pi_edges):
     """w_p(s_perp) = 2 * sum_j xi(s_perp, pi_j) * dpi_j (FCFC convention).
 
     Parameters: xi of shape (ns, np); pi_edges of length np + 1 (input
-    units)."""
-    dpi = jnp.asarray(np.diff(np.asarray(pi_edges, dtype=np.float64)))
-    return 2.0 * jnp.sum(jnp.asarray(xi) * dpi[None, :], axis=1)
+    units).  The result preserves the floating dtype of `xi`."""
+    xi = jnp.asarray(xi)
+    dtype = _working_dtype(xi)
+    xi = xi.astype(dtype)
+    dpi = jnp.asarray(np.diff(np.asarray(pi_edges, dtype=np.float64)),
+                      dtype=dtype)
+    return 2.0 * jnp.sum(xi * dpi[None, :], axis=1)
