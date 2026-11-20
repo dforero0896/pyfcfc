@@ -15,6 +15,7 @@ python examples/example_soft_hist_wp.py         # ~8 min (needs jax)
 python examples/example_soft_hist_rppi.py       # ~60 s
 python examples/example_box_vs_pycorr.py        # ~30 s (needs pycorr)
 python examples/example_survey_vs_pycorr.py     # ~15 s (needs pycorr)
+python examples/example_angular_wtheta.py       # ~10 s
 python examples/example_pycorr_interop.py       # ~10 s (needs pycorr)
 python examples/example_benchmark.py            # ~1-10 min, see below
 ```
@@ -42,6 +43,7 @@ notebooks in `../notebooks/` (see the table in the main README).
 | 11 | `example_soft_hist_wp.py` | Differentiable projected correlation function on realistic logarithmic r_p bins (`geomspace(0.5, 40, 200)`): the scale-free kernel sigma_s(r_p) = f * r_p (`soft_sigma_log`) plus soft pi bins make w_p smooth; built on the `pyfcfc.jax` primitive (custom_vjp forward + C adjoint) with JAX-side Landy-Szalay and pi integration; gradient check vs FD and a transverse stretch recovered from w_p alone; figures `figures/soft_hist_wp.png` and the kernel-width comparison `figures/soft_hist_wp_sigmas.png` (sigma_s = f * r_p absolute, sigma_pi absolute [Mpc/h]). |
 | 12 | `example_soft_hist_rppi.py` | The full 2D xi(r_p, pi) map as a differentiable object: adjoint Jacobian maps d xi/d theta for an anisotropic stretch model (one-hot cotangents through `soft_hist_vjp`), validated bin-by-bin against finite differences; figure `figures/soft_hist_rppi.png`. |
 | 13 | `benchmark_jit_cache.py` | First-run vs subsequent-run timings of the `pyfcfc.jax` primitive under `jax.jit` (forward and `jax.grad`): the first call per input signature pays the tracing + XLA compilation, every later call reuses the cached executable (no recompilation); a new shape costs exactly one extra compilation. Prints the environment, per-call time series and summary tables; `--json FILE` dumps the raw numbers. No figure. |
+| 14 | `example_angular_wtheta.py` | Angular correlation function w(theta) from a narrow redshift slice: `compute_wtheta` maps RA/Dec to the unit sphere and theta bins to chord bins, so the ordinary isotropic 3-D pair counter (Landy–Szalay) measures w(theta); DD/DR/RR are validated against an independent O(N²) NumPy counter and the figure shows theta² w(theta); figure `figures/angular_wtheta.png`. |
 
 ## Feature coverage matrix
 
