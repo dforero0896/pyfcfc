@@ -657,6 +657,7 @@ feature-coverage matrix and the benchmarking guide. In short:
 | `examples/example_validation_bruteforce.py` | pyfcfc vs brute-force counting, all binning schemes | `figures/validation_bruteforce.png` |
 | `examples/example_box_vs_pycorr.py` | periodic box: xi(s), xi_0/2/4, the 2D xi(s_perp, pi), w_p, natural & LS estimators, pyfcfc vs pycorr + timings | `figures/box_vs_pycorr.png`, `figures/box_vs_pycorr_natural.png`, `figures/box_vs_pycorr_2d.png` |
 | `examples/example_survey_vs_pycorr.py` | survey-like data from {RA, Dec, z}: multipoles and w_p vs pycorr (midpoint LOS) | `figures/survey_vs_pycorr.png` |
+| `examples/example_angular_wtheta.py` | angular correlation function w(theta) from a narrow redshift slice via the unit-sphere chord mapping, with a brute-force DD/DR/RR validation | `figures/angular_wtheta.png` |
 | `examples/example_pycorr_interop.py` | split-random accumulation → pycorr state → save/load/rebin | `figures/pycorr_interop.png` |
 | `examples/example_benchmark.py` | performance study vs pycorr: sizes, binning schemes, thread scaling, SIMD reporting | `figures/benchmark.png`, `figures/benchmark_results.csv` |
 

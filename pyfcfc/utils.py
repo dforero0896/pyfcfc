@@ -10,7 +10,11 @@ This module provides
 - :func:`pairs_to_pycorr`, to convert ``pyfcfc`` pair counts into a
   `pycorr <https://github.com/cosmodesi/pycorr>`_ state dictionary, so that
   the pair counts can be manipulated (estimators, rebinning, saving, ...)
-  with the pycorr API.
+  with the pycorr API;
+- :func:`compute_wtheta`, to measure the angular correlation function
+  w(theta) from RA/Dec catalogues, using the unit-sphere reduction of the
+  ordinary 3-D pair counting (with :func:`radec_to_unit_sphere`,
+  :func:`theta_to_chord` and :func:`chord_to_theta` as helpers).
 
 Conventions
 -----------
@@ -39,7 +43,8 @@ good) statistical approximation for cross pairs.  In the isotropic mode
 import numpy as np
 
 __all__ = ['add_pair_counts', 'compute_multipoles', 'compute_wp',
-           'pairs_to_pycorr']
+           'pairs_to_pycorr', 'compute_wtheta', 'radec_to_unit_sphere',
+           'theta_to_chord', 'chord_to_theta']
 
 
 def _pair_keys(results):
@@ -296,6 +301,208 @@ def compute_wp(correlation_function, pi_edges, ignore_nan=False):
             frac = total / covered
         return 2. * (xi_safe * dpi[None, :]).sum(axis=1) * frac
     return 2. * (xi * dpi[None, :]).sum(axis=1)
+
+
+def radec_to_unit_sphere(ra, dec):
+    """Convert right ascension and declination to unit-sphere coordinates.
+
+    Parameters
+    ----------
+    ra, dec : array_like
+        Right ascension and declination, in degrees, of shape (N,).
+
+    Returns
+    -------
+    array
+        Cartesian coordinates on the unit sphere, of shape (N, 3).
+    """
+    ra = np.deg2rad(np.asarray(ra, dtype=np.float64))
+    dec = np.deg2rad(np.asarray(dec, dtype=np.float64))
+    if ra.shape != dec.shape:
+        raise ValueError(f"ra and dec must have the same shape, got "
+                         f"{ra.shape} and {dec.shape}")
+    cos_dec = np.cos(dec)
+    return np.column_stack((cos_dec * np.cos(ra),
+                            cos_dec * np.sin(ra),
+                            np.sin(dec)))
+
+
+def theta_to_chord(theta):
+    r"""Angular separation to chord length on the unit sphere.
+
+    The Euclidean distance between two unit vectors separated by an angle
+    :math:`\theta` is the chord :math:`s = 2\sin(\theta/2)`.  This is the
+    separation that ``pyfcfc`` measures for unit-sphere coordinates, so
+    angular bins are passed to it as chord bins.
+
+    Parameters
+    ----------
+    theta : array_like
+        Angular separations, in radians.
+
+    Returns
+    -------
+    array
+        Chord lengths, in the same shape as ``theta``.
+    """
+    return 2. * np.sin(0.5 * np.asarray(theta, dtype=np.float64))
+
+
+def chord_to_theta(chord):
+    """Inverse of :func:`theta_to_chord`: chord length to angle, in radians."""
+    chord = np.asarray(chord, dtype=np.float64)
+    if np.any(chord < 0.) or np.any(chord > 2.):
+        raise ValueError("chord lengths on the unit sphere must be in [0, 2]")
+    return 2. * np.arcsin(0.5 * chord)
+
+
+def compute_wtheta(data_cats, data_wts, theta_edges, degrees=True, **kwargs):
+    r"""Angular correlation function w(theta) from RA/Dec catalogues.
+
+    ``pyfcfc`` only measures Euclidean separations between Cartesian
+    positions, but the angular correlation function is the unit-sphere
+    special case: for objects at unit distance the separation is the chord
+    :math:`s = 2\sin(\theta/2)`.  This function converts RA/Dec to
+    unit-sphere Cartesian coordinates, bins the chord length with the
+    ordinary isotropic pair counting (``bin=0``), and converts the bin
+    centres back to angles.  The sphere is internally rescaled to a
+    maximum chord of one, which leaves the geometry and the pair counts
+    unchanged but avoids a small-separation limit of the FCFC bin lookup
+    table; returned separations are converted back to chord lengths on the
+    unit sphere.
+
+    The catalogues are expected as {RA, Dec} or {RA, Dec, z}; RA and Dec
+    must be in degrees, and the (optional) third column is ignored, so a
+    redshift slice can be passed without reformatting it.  Coordinate
+    conversion is always disabled (no cosmology is involved).
+
+    Parameters
+    ----------
+    data_cats : sequence of array_like
+        Catalogues with shape (N, 2) or (N, 3); the first two columns are
+        RA and Dec in degrees.
+    data_wts : sequence of array_like
+        Weights of the catalogues, each of shape (N,).
+    theta_edges : array_like
+        Angular bin edges, strictly increasing and non-negative, in
+        degrees if ``degrees=True`` and in radians otherwise.  The edges
+        must not exceed 180 deg (360 deg for a full circle in radians).
+    degrees : bool, default=True
+        Whether ``theta_edges`` (and the returned angles) are in degrees.
+    **kwargs
+        Further options passed to :func:`pyfcfc.sky.py_compute_cf`, e.g.
+        ``pair`` or ``cf``.  The ``bin`` and ``convert`` options are set by
+        this function and must not be given.  For two catalogues the
+        defaults are the Landy-Szalay estimator with labels 'D' and 'R';
+        for a single catalogue the natural DD counts are returned.
+
+    Returns
+    -------
+    dict
+        The result dictionary of ``py_compute_cf``, with the angular bin
+        centres in ``theta`` (in the requested unit), the bin edges in
+        ``theta_edges``, and ``wtheta`` as an alias of ``cf``.  The
+        separation ``s`` returned by ``py_compute_cf`` is the chord length.
+    """
+    if not isinstance(degrees, bool):
+        raise ValueError("degrees must be a boolean")
+    theta_edges = np.asarray(theta_edges, dtype=np.float64)
+    if theta_edges.ndim != 1 or theta_edges.size < 2:
+        raise ValueError("theta_edges must be a one-dimensional array with "
+                         "at least two entries")
+    if not np.all(np.isfinite(theta_edges)):
+        raise ValueError("theta_edges must be finite")
+    theta_max = 180. if degrees else np.pi
+    if theta_edges[0] < 0. or theta_edges[-1] > theta_max:
+        raise ValueError(f"theta_edges must lie in [0, {theta_max}]")
+    if np.any(np.diff(theta_edges) <= 0.):
+        raise ValueError("theta_edges must be strictly increasing")
+    if 'bin' in kwargs and kwargs['bin'] != 0:
+        raise ValueError("compute_wtheta only supports the isotropic binning "
+                         "scheme (bin=0)")
+    if kwargs.get('convert', False):
+        raise ValueError("compute_wtheta works on the unit sphere and does "
+                         "not support convert=True")
+
+    theta_rad = np.deg2rad(theta_edges) if degrees else theta_edges
+    chord_edges = theta_to_chord(theta_rad)
+
+    # FCFC rescales separations internally for its bin lookup table, and the
+    # resulting table becomes unreliable when the largest separation is much
+    # smaller than unity (the rescaled squared distance overflows the 32-bit
+    # bin index, and pairs pile up in one of the last bins).  The angular
+    # geometry is scale free, so normalise the unit sphere to a maximum
+    # chord of one: coordinates and chord edges are multiplied by the same
+    # constant, which leaves all pair counts unchanged.  This keeps the
+    # internal separations O(1) for any angular range.
+    scale = 1. / chord_edges[-1]
+    chord_scaled = chord_edges * scale
+
+    cats = [np.asarray(cat) for cat in data_cats]
+    if len(cats) != len(data_wts):
+        raise ValueError(f"got {len(cats)} catalogues but "
+                         f"{len(data_wts)} weight arrays")
+    unit_cats = []
+    for i, cat in enumerate(cats):
+        if cat.ndim != 2 or cat.shape[1] not in (2, 3):
+            raise ValueError(f"catalogue {i} must have shape (N, 2) or "
+                             f"(N, 3), got {cat.shape}")
+        unit_cats.append(radec_to_unit_sphere(cat[:, 0], cat[:, 1]) * scale)
+
+    # Labels and default estimator.  Use friendly D/R labels for the
+    # usual data+random case; otherwise fall back to the pyfcfc defaults.
+    ncat = len(unit_cats)
+    labels = kwargs.pop('label', None)
+    if labels is None:
+        labels = ['D', 'R'] if ncat == 2 else \
+            [chr(ord('A') + i) for i in range(ncat)]
+    elif isinstance(labels, str):
+        labels = list(labels)
+    if len(labels) != ncat:
+        raise ValueError(f"got {len(labels)} labels for {ncat} catalogues")
+
+    if ncat == 1:
+        default_pair = [labels[0] * 2]
+        default_cf = [labels[0] * 2]
+    elif ncat == 2:
+        dd, dr, rr = labels[0] * 2, labels[0] + labels[1], labels[1] * 2
+        default_pair = [dd, dr, rr]
+        default_cf = [f'({dd} - 2 * {dr} + {rr}) / {rr}']
+    else:
+        default_pair = None
+        default_cf = None
+    pair = kwargs.pop('pair', default_pair)
+    cf = kwargs.pop('cf', default_cf)
+    options = dict(kwargs)
+    if pair is not None:
+        options['pair'] = pair
+    if cf is not None:
+        options['cf'] = cf
+    options.setdefault('verbose', False)
+
+    # An explicit soft histogram kernel width is expressed in the units of
+    # the separation edges, which we have just rescaled.
+    if (options.get('soft_hist') and options.get('soft_sigma') is not None
+            and not options.get('soft_sigma_log')):
+        options['soft_sigma'] = float(options['soft_sigma']) * scale
+
+    from pyfcfc.sky import py_compute_cf
+
+    results = py_compute_cf(unit_cats, data_wts, chord_scaled, None, 1,
+                            label=labels, bin=0, convert=False, **options)
+    # Report separations in the original chord units.
+    if 's' in results:
+        results['s'] = np.asarray(results['s'], dtype=np.float64) / scale
+    pairs = results.get('pairs', {})
+    for key in ('smin', 'smax'):
+        if key in pairs:
+            pairs[key] = np.asarray(pairs[key], dtype=np.float64) / scale
+    results['theta_edges'] = theta_edges
+    results['theta'] = 0.5 * (theta_edges[:-1] + theta_edges[1:])
+    results['theta_edges_chord'] = chord_edges
+    if 'cf' in results:
+        results['wtheta'] = results['cf']
+    return results
 
 
 def _full_range_edges(half_edges):
